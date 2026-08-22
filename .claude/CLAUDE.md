@@ -70,7 +70,9 @@ src/
 포팅과 구조 분리는 끝났다. `ShadowCoach/index.tsx`는 2104줄에서 556줄이 됐다.
 TDS 채택은 진행 중 — `Switch` `Checkbox` `Toast` `Slider` `Txt` `BottomSheet` `Button`이 들어갔고,
 `TextField` `SegmentedControl` `StepperRow`는 아직 자체 구현이다.
-남은 항목의 우선순위와 근거는 [design-system.md](rules/design-system.md)에 적어 뒀다.
+
+**남은 일은 [TODO.md](TODO.md)에 우선순위대로 있다. 새 작업을 시작하기 전에 거기를 먼저 읽어라.**
+지금 맨 위는 실기기 점검이고, 그게 비어야 다음 TDS 교체를 시작할 수 있다.
 
 ## 말투
 
