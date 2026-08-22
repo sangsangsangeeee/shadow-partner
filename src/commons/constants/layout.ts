@@ -31,4 +31,4 @@ export const NUMS = { fontVariant: ['tabular-nums' as const] };
  */
 export const REF_W = 362;
 export const REF_H = 554;
-export const REF_RING = 288;
+export const REF_RING = 320;

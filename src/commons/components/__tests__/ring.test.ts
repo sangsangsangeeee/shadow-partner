@@ -6,7 +6,7 @@ import { ringMetrics, trainScale } from '../../utils/ring';
  * 시간 글자가 그대로면 상태 글자(`준비`, `라운드 2 / 3`)와 겹친다.
  */
 
-const SIZES = [160, 180, 200, 220, 240, 260, 288];
+const SIZES = [160, 180, 200, 220, 240, 260, 288, 320];
 
 describe('원형 스톱워치 치수', () => {
   it.each(SIZES)('%ipx — 상태 글자가 시간 글자와 겹치지 않는다', (size) => {

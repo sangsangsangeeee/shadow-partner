@@ -128,7 +128,7 @@ export function TrainView({
             <View>
               <View style={[styles.chipRow, { gap: px(8), marginBottom: px(16) }]}>
                 <Pulse style={[styles.cueChip, { paddingHorizontal: px(12), paddingVertical: px(8) }]}>
-                  <Typo level="chip" color={C.z500} style={[{ fontSize: px(18) }]}>{hold.cue}</Typo>
+                  <Typo level="chip" color={C.z500} style={[{ fontSize: px(19) }]}>{hold.cue}</Typo>
                 </Pulse>
               </View>
               <View style={styles.gauge}>
@@ -160,7 +160,7 @@ export function TrainView({
                         level="chip"
                         weight={now ? 'semibold' : 'regular'}
                         color={now ? C.white : done ? C.z800 : C.z500}
-                        style={{ fontSize: px(18) }}
+                        style={{ fontSize: px(19) }}
                       >
                         {label(mid)}
                       </Typo>
@@ -186,13 +186,13 @@ export function TrainView({
               </View>
 
               {settings.mode === 'count' ? (
-                <Typo level="caption" color={C.z600} style={[NUMS]}>
+                <Typo level="caption" color={C.z600} style={[NUMS, { fontSize: px(14) }]}>
                   {repCount} / {settings.reps}회
                 </Typo>
               ) : null}
             </View>
           ) : (
-            <Typo level="small" color={C.z600} style={[{ fontSize: px(14) }]}>
+            <Typo level="small" color={C.z600} style={[{ fontSize: px(15) }]}>
               {idleHint}
             </Typo>
           )}
@@ -202,13 +202,13 @@ export function TrainView({
           {!running ? (
             <Tap onPress={start} style={[styles.primaryBtn, styles.flex, { paddingVertical: px(16), gap: px(8) }]}>
               <Play size={px(20)} color={C.white} />
-              <Typo level="button" weight="semibold" color={C.white} style={[{ fontSize: px(16) }]}>시작</Typo>
+              <Typo level="button" weight="semibold" color={C.white} style={[{ fontSize: px(17) }]}>시작</Typo>
             </Tap>
           ) : (
             <>
               <Tap onPress={togglePause} style={[styles.subBtn, styles.flex, { paddingVertical: px(16), gap: px(8) }]}>
                 {paused ? <Play size={px(16)} color={C.white} /> : <Pause size={px(16)} color={C.white} />}
-                <Typo level="small" color={C.white} style={[{ fontSize: px(14) }]}>
+                <Typo level="small" color={C.white} style={[{ fontSize: px(15) }]}>
                   {paused ? '재개' : '일시정지'}
                 </Typo>
               </Tap>
@@ -227,7 +227,7 @@ export function TrainView({
 
         {startError ? (
           <View style={styles.notice}>
-            <Typo level="caption" color={C.white}>{startError}</Typo>
+            <Typo level="caption" color={C.white} style={{ fontSize: px(14) }}>{startError}</Typo>
           </View>
         ) : null}
 
@@ -236,7 +236,7 @@ export function TrainView({
             onPress={onOpenSettings}
             style={[styles.summaryPill, { paddingHorizontal: px(16), paddingVertical: px(12), gap: px(8) }]}
           >
-            <Typo level="small" color={C.z300} style={[{ fontSize: px(14) }]}>{summary}</Typo>
+            <Typo level="small" color={C.z300} style={[{ fontSize: px(15) }]}>{summary}</Typo>
             <ChevronUp size={px(16)} color={C.z600} />
           </Tap>
         </View>

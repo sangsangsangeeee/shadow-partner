@@ -32,7 +32,7 @@ export function Stopwatch({
   maxSize?: number;
 }) {
   const { width: winW } = useWindowDimensions();
-  // 기본은 기획서대로 288. 폭이나 높이가 정말 모자랄 때만 줄인다.
+  // 기본은 기획서대로 320. 폭이나 높이가 정말 모자랄 때만 줄인다.
   const size = Math.max(RING_MIN, Math.min(RING, winW - 40, maxSize && maxSize > 0 ? maxSize : RING));
   const m = ringMetrics(size);
   const ratio = total > 0 ? clamp(seconds / total, 0, 1) : 0;
