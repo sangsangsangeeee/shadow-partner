@@ -1,6 +1,10 @@
 {
   "name": "shadow-partner",
   "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "granite dev",
     "build": "ait build",
@@ -11,8 +15,10 @@
   },
   "dependencies": {
     "@apps-in-toss/framework": "^2.10.10",
+    "@apps-in-toss/native-modules": "2.10.10",
     "@granite-js/native": "1.0.43",
     "@granite-js/react-native": "1.0.43",
+    "@toss/tds-react-native": "2.0.5",
     "brick-module": "0.5.1",
     "react": "19.2.3",
     "react-native": "0.84.0"

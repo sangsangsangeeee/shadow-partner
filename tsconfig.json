@@ -5,7 +5,7 @@
     "target": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ESNext"],
-    "types": ["react-native"],
+    "types": ["react-native", "jest"],
     "jsx": "react-native",
     "resolveJsonModule": true,
     "esModuleInterop": true,
@@ -20,5 +20,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  // preview.tsx는 웹판 원본(DOM API·lucide-react). RN 프로젝트에서는 참고용이라 타입 검사 대상이 아니다.
+  "exclude": ["node_modules", "src/preview.tsx"]
 }

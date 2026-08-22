@@ -1,0 +1,9 @@
+# pnpm 11의 기본 공급망 보안 정책(minimumReleaseAge ~24h)을 끔.
+# 최신 deps를 자주 설치하는 프로젝트라 배포 직후 버전도 바로 설치되도록 함.
+minimumReleaseAge: 0
+
+allowBuilds:
+  '@sentry/cli': false
+  '@swc/core': false
+  esbuild: false
+  protobufjs: false
