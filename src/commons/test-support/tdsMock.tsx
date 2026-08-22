@@ -54,22 +54,16 @@ function Root({ open, header, cta, children }: any) {
   );
 }
 const Header = ({ children }: any) => <Text>{children}</Text>;
-const CTA = ({ children }: any) => <View>{children}</View>;
+/** 실물 CTA는 Button props를 그대로 받아 스스로 버튼을 만든다. 대역도 눌리게 둔다. */
+const CTA = ({ children, onPress, ...rest }: any) => (
+  <Pressable {...rest} onPress={onPress} accessibilityRole="button">
+    <Text>{children}</Text>
+  </Pressable>
+);
 const HeaderDescription = ({ children }: any) => <Text>{children}</Text>;
 const Select = ({ children }: any) => <View>{children}</View>;
 
 export const BottomSheet = { Root, Header, CTA, HeaderDescription, Select };
-
-export function Switch({ checked, onCheckedChange, ...rest }: any) {
-  return (
-    <Pressable
-      {...rest}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: !!checked }}
-      onPress={() => onCheckedChange?.(!checked)}
-    />
-  );
-}
 
 const CheckboxLine = ({ checked, ...rest }: any) => (
   <View {...rest} accessibilityRole="checkbox" accessibilityState={{ checked: !!checked }} />

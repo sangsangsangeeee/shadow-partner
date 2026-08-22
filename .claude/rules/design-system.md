@@ -26,19 +26,27 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 
 ## TDS 채택
 
-방향은 **자체 구현을 TDS로 밀어내는 것**이다. 이미 들어간 것:
+방향이 하나가 아니다. **TDS 2.0.5는 토스 브랜드 색에 묶여 있고 이 앱은 검정 + 딥틸이라,
+색을 여는 컴포넌트만 받아들인다.** 들어간 것:
 
-`TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Switch` `Checkbox` `Toast`
+`TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Checkbox` `Toast`
 
-아직 자체 구현인 것과 그 이유 — **위가 안전하고 아래가 위험하다:**
+**전역 테마로 뚫리는 건 `Button` 하나뿐이다.** 시드 토큰이 `color.primary` 하나고
+거기서 파생되는 게 `button`과 `bridge`뿐이라, 번들에서 `useTheme`을 읽는 파일이 그 둘밖에 없다.
+그래서 `index.tsx`가 `token={{ color: { primary: ACCENT } }}`를 넘긴다.
 
-| 자체 | TDS 대응 | 범위 | 위험 |
-|---|---|---|---|
-| `Stepper` | `StepperRow` / `NumericSpinner` | 4곳, 전부 SettingsSheet | 닫혀 있어 안전 |
-| `Segmented` | `SegmentedControl.Root/Item` | 6곳 | 동시에 움직인다 |
-| `TextInput` | `TextField` | 3곳 | 둘이 좁은 인라인 편집기. 픽셀이 깨진다면 여기 |
+`Slider`는 `color` prop을 받아 액센트가 살아 있다. `Checkbox` `Toast`는 색을 못 바꾼다.
+
+남은 셋의 조사 결과와 우선순위는 [TODO.md](../TODO.md) 1번에 있다.
+**`Stepper`는 교체 불가로 결론이 났다** — 거기 근거가 적혀 있다.
 
 **FAB는 TDS `Button`으로 바꾸지 마라.** 알약·원형 커스텀 모양이라 맞지 않는다.
+
+**`Switch`는 TDS에서 되돌렸다.** 트랙이 `grey200 → blue500` 하드코딩이고
+`style`은 바깥 `Pressable`에만 걸려 트랙에 닿지 않는다. 액센트를 못 얹어서 RN 내장으로 돌아갔다.
+
+**`BottomSheet.CTA`에 `Button`을 넣지 마라.** CTA가 `ComponentProps<typeof Button>`을 받아
+스스로 버튼을 만든다. 안에 또 넣으면 눌리는 것이 겹쳐 바깥 28px이 죽는다.
 
 ### TDS 컴포넌트를 넣기 전에
 

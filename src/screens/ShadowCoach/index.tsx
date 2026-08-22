@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { TDSProvider, Toast } from '@toss/tds-react-native';
 import {
   ACCENT,
@@ -62,7 +62,7 @@ const TABS: { id: Tab; label: string; icon: typeof Timer }[] = [
 
 export default function ShadowCoach() {
   return (
-    <TDSProvider colorPreference="dark">
+    <TDSProvider colorPreference="dark" token={{ color: { primary: ACCENT } }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <Screen />
       </SafeAreaProvider>
@@ -324,6 +324,19 @@ function Screen() {
 
   const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe;
 
+  /* 탭바를 화면 밖까지 정확히 밀려면 자기 높이를 알아야 한다. 재서 쓴다. */
+  const [tabH, setTabH] = useState(0);
+  const tabSlide = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(tabSlide, {
+      toValue: sheetOpen ? tabH + LAYER.tabBar + bottomSafe : 0,
+      // 기획서 3장이 정한 오르내림 속도(220~280ms)를 그대로 쓴다.
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [sheetOpen, tabH, bottomSafe, tabSlide]);
+
   const goTab = (id: Tab) => {
     setTab(id);
     // 다른 탭으로 넘어가면 방금 지운 것을 되돌릴 기회는 접는다.
@@ -338,10 +351,9 @@ function Screen() {
       >
         <View style={styles.inner}>
           <View style={styles.headerRow}>
-            <Typo level="small" color={C.z600}>쉐도우 코치</Typo>
             {tab === 'train' ? (
               <Tap onPress={() => setSheetOpen(true)} accessibilityLabel="설정" style={styles.headerBtn}>
-                <SettingsIcon size={20} color={C.z600} />
+                <SettingsIcon size={24} color={C.z600} />
               </Tap>
             ) : null}
           </View>
@@ -456,7 +468,15 @@ function Screen() {
       />
 
       {/* ---------- 탭바 (z 40) ---------- */}
-      <View style={[styles.tabLayer, { bottom: LAYER.tabBar + bottomSafe }]} pointerEvents="box-none">
+      {/* 탭바가 zIndex 40이라 TDS 시트(zIndex 없음) 위로 올라온다. 시트가 열리면 아래로 비켜준다. */}
+      <Animated.View
+        style={[
+          styles.tabLayer,
+          { bottom: LAYER.tabBar + bottomSafe, transform: [{ translateY: tabSlide }] },
+        ]}
+        pointerEvents={sheetOpen ? 'none' : 'box-none'}
+        onLayout={(e) => setTabH(e.nativeEvent.layout.height)}
+      >
         <View style={styles.tabBar}>
           {TABS.map(({ id, label: l, icon: IconCmp }) => {
             const on = tab === id;
@@ -473,7 +493,7 @@ function Screen() {
             );
           })}
         </View>
-      </View>
+      </Animated.View>
 
       <AddMoveOverlay visible={addOpen} onClose={() => setAddOpen(false)} onAdd={addMove} />
       <DoneOverlay
@@ -517,7 +537,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   inner: { width: '100%', maxWidth: MAXW, alignSelf: 'center' },
   header: { paddingHorizontal: 20, paddingBottom: 24 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 36 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', height: 36 },
   headerBtn: { width: TOUCH, height: TOUCH, alignItems: 'flex-end', justifyContent: 'center' },
 
   fabLayer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 20, zIndex: LAYER.zFab },

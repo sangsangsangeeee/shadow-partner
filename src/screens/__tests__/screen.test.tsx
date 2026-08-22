@@ -65,8 +65,8 @@ beforeEach(() => {
 
 const setup = async () => {
   const view = render(<ShadowCoach />);
-  // 저장소를 읽고 나면 loaded가 켜진다
-  await waitFor(() => expect(screen.getByText('쉐도우 코치')).toBeTruthy());
+  // 저장소를 읽고 나면 loaded가 켜진다. 탭바는 어느 탭에서도 서 있어서 렌더 완료 신호로 삼는다.
+  await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
   return view;
 };
 

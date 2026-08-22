@@ -3,62 +3,96 @@
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
 TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야 한 번만 본다.
 
-마지막 갱신: `5d43603` 기준. 브랜치 `feat/shadow-coach`, main 미병합.
+마지막 갱신: 훈련 화면 손질까지. 브랜치 `feat/shadow-coach`, main 미병합.
 
 ---
 
 ## 0. 실기기 점검 — 쌓인 것부터
 
-TDS 교체(`1503da4`) 이후 아직 기기에서 안 봤다. **다음 TDS 작업을 시작하기 전에 여기를 비워라.**
-지금 쌓인 게 셋뿐이라 몇 분이면 끝나고, 여기서 어긋나면 그 위에 쌓은 게 전부 흔들린다.
+훈련 화면은 2026-08-22에 개발 서버로 보면서 고쳤다. **아래는 아직 기기에서 안 본 것들이다.**
 
-- [ ] **설정 시트 스위치 색** — `trackColor`/`thumbColor`를 걷어내서 액센트가 아니라 TDS 팔레트를 따른다.
-      검정 바탕에서 어색하면 되돌릴지 판단.
 - [ ] **콤보 카드 터치 범위** — 줄 아무 데나 눌러 켜고 꺼지는지. **체크박스 위를 눌러도** 되는지.
       `pointerEvents="none"`이 안드로이드에서 실제로 먹는지 보는 자리다.
 - [ ] **되돌리기 토스트 높이 3종** — FAB 있을 때 / 없을 때 / 키보드 올라왔을 때.
       TDS가 안전영역을 자기가 더해서 우리는 빼고 넘긴다. 어긋나면 딱 안전영역만큼 뜬다.
 - [ ] **6초 자동 사라짐** — 시계 주인이 `useMaterial`에서 TDS Toast로 넘어갔다.
+- [ ] **스위치 모양 양쪽 기기** — RN 내장으로 되돌려서 iOS·안드로이드가 각자 기본 모양으로 그려진다.
+      TDS는 50×30 고정이었다. iOS는 `thumbColor`를 무시할 수 있다.
+- [ ] **시트 완료 버튼 가장자리** — 이중 버튼을 걷어냈다. 바깥 28px이 실제로 눌리는지.
+- [ ] **탭바 내려가는 타이밍** — 시트는 스프링(`spring.quick`), 탭바는 220ms 등속이라 곡선이 다르다.
+      어긋나 보이면 탭바 쪽을 맞춘다.
+- [ ] **콤보·호출어 탭의 빈 헤더** — 타이틀을 지워서 그 두 탭은 헤더가 완전히 빈다.
+      여백을 줄일지는 보고 정한다.
 
 목소리(TTS)는 2026-08-22 확인 완료. 그 뒤로 `VoiceEngine`은 안 건드렸다.
 
 ---
 
-## 1. TDS 남은 셋 — 위험이 낮은 순서로
+## 1. TDS 남은 것 — `.d.ts`를 다 읽고 결론이 바뀌었다
 
-방향은 자체 구현을 TDS로 밀어내는 것. 넣기 전 절차는
-[design-system.md](rules/design-system.md)의 "TDS 컴포넌트를 넣기 전에".
+**아래는 추측이 아니라 번들에서 확인한 것이다. 다시 조사하지 마라.**
 
-### 1-1. `Stepper` → `StepperRow` / `NumericSpinner`
+공통 원인 하나가 셋 전부에 걸린다 — **TDS 2.0.5는 토스 브랜드 색(파랑·회색)에 박혀 있고
+이 앱은 검정 + 딥틸이다.** 전역 테마(`TDSProvider`의 `token`)로 뚫리는 건 `Button` 하나뿐이다.
 
-- [ ] 어느 쪽이 맞는지 `.d.ts`로 먼저 판단 (라운드 수·시간은 행 전체, 값만 필요하면 스피너)
-- [ ] 4곳 교체 — 전부 [SettingsSheet.tsx](../src/screens/ShadowCoach/parts/SettingsSheet.tsx)
-- [ ] [Stepper.tsx](../src/commons/components/Stepper.tsx) 76줄 삭제, 배럴에서 제거
-- [ ] 훈련 중 잠금(`disabled`)이 유지되는지
+### 1-1. `Stepper` → **교체 불가. 하지 마라**
 
-**왜 먼저** — 범위가 한 파일 안에 닫혀 있다. 깨져도 설정 시트만 깨진다.
+TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
+
+- `StepperRow`는 값 증감이 아니다. 온보딩 절차를 나타내는 행이다 —
+  `NumberIcon`(1~7) · `Texts`(제목/설명) · 연결선(`hideLine`) · 오른쪽 화살표/버튼.
+- `NumericSpinner`에는 **`step`이 없다.** 항상 ±1이고 `format`도 `suffix`도 없다.
+
+우리 4곳이 전부 걸린다 — 라운드 시간(`step={15}` + `fmt`의 `3:00`), 휴식(`step={10}` + `fmt`),
+라운드(`suffix="회"`), 라운드당 호출(`suffix="번"`).
+
+**4곳 중 0곳이 그대로 옮겨진다.** 둘만 바꾸면 같은 시트 안에 두 모양이 섞이고
+[Stepper.tsx](../src/commons/components/Stepper.tsx) 76줄도 못 지운다 — 노렸던 이득이 사라진다.
 
 ### 1-2. `Segmented` → `SegmentedControl.Root/Item`
 
-- [ ] 제네릭(`<T extends string | number>`)을 TDS가 받는지 확인 — 못 받으면 호출부 6곳이 다 바뀐다
-- [ ] `size: 'normal' | 'tall'`, `level: 'small' | 'caption'` 대응물이 있는지
+제네릭 우려는 사실이었다. `Root`는 `value: string` 고정인데
+`BEAT_SEGMENTS`의 값은 **number**(0.4·0.5·0.65·0.85·1.05)다.
+
+- [ ] `AddMoveOverlay`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
+- [ ] `name: string`이 필수 — 6곳 전부 새 prop
+- [ ] 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
+- [ ] `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
+      동작 길이 5칸에서 줄이지 못한다
 - [ ] 6곳 교체 — AddMoveOverlay(2) · SettingsSheet · MovePickerOverlay · WordRow · WordsView
 - [ ] [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄 삭제
+
+**색** — 인디케이터가 `colorPreference`만 보고 `dark → inverseGrey300`으로 하드코딩돼 있다.
+선택된 칸의 `ACCENT` 딥틸이 회색이 된다. `Indicator`는 공개 API(`SegmentedControl = { Root, Item }`)에
+없어서 갈아끼울 통로도 마땅치 않다.
 
 **위험** — 6곳이 동시에 움직인다. `WordRow` 것은 memo가 걸린 줄 안에 있어서
 prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스트가 잡는다. 잡히면 고마운 거다.
 
 ### 1-3. `TextInput` → `TextField`
 
-- [ ] [Field.tsx](../src/commons/components/Field.tsx) — 라벨+입력. TDS TextField가 라벨을 갖고 있으면 이 컴포넌트가 통째로 없어진다
+**계약은 셋 중 제일 잘 맞는다.** `variant`(필수) · `label` · `labelOption` · `help` · `hasError` ·
+`paddingTop/Bottom` · `containerStyle` · `prefix`/`suffix`/`right`가 있고 `TextInputProps`가 통과한다.
+
+- [ ] [Field.tsx](../src/commons/components/Field.tsx) — 라벨이 내장이라 이 컴포넌트가 통째로 없어진다
 - [ ] [CombosView.tsx:122](../src/screens/ShadowCoach/views/CombosView.tsx#L122) — 콤보 입력. 칩 역동기화가 붙어 있다
 - [ ] [WordRow.tsx:71](../src/screens/ShadowCoach/parts/WordRow.tsx#L71) — **한 줄 인라인 편집기. 여기가 제일 위험**
 
+**색은 못 맞춘다.** 색 prop이 없고 전부 `useAdaptive()`가 정한다 —
+글자 `grey800` · 플레이스홀더 `grey500` · 라인 `grey100` / 포커스 `blue400` / 오류 `red600`.
+`backgroundColor`·`placeholderColor`를 받는 건 `OldTextField`인데 **deprecated**다.
+
 **위험** — TDS TextField는 자기 높이·라벨·패딩을 들고 온다.
 `WordRow`는 줄 안에 끼워 넣은 좁은 편집기라 픽셀이 깨진다면 여기다.
-[design-system.md](rules/design-system.md)의 픽셀 충실도 규칙이 가장 세게 걸리는 자리.
 
-**셋을 한 커밋에 묶지 마라.** 실물에서 어디가 깨졌는지 못 짚는다.
+### 못 하는 것 둘
+
+- **바텀시트 열고 닫는 속도** — `Container.js`에 `spring.quick`(stiffness 800 / damping 55)이 박혀 있다.
+  `RootProps`에 속도 prop이 없고 `style`은 애니메이션이 걸린 wrapper가 아니라 안쪽 컨테이너로 간다.
+  `Container`는 export되지도 않는다. 바꾸려면 자체 시트를 만드는 수밖에 없다.
+- **`Switch` 트랙 색** — `grey200 → blue500` 하드코딩. 그래서 RN 내장으로 되돌렸다.
+
+**둘을 한 커밋에 묶지 마라.** 실물에서 어디가 깨졌는지 못 짚는다.
 
 ---
 

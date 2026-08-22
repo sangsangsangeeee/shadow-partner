@@ -86,7 +86,7 @@ beforeEach(() => {
 
 const setup = async () => {
   render(<ShadowCoach />);
-  await waitFor(() => expect(screen.getByText('쉐도우 코치')).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
 };
 
 /** 같은 이름의 prop들을 렌더 시점별로 모아 신원이 하나뿐인지 본다. */

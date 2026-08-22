@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { BottomSheet, Button, Switch } from '@toss/tds-react-native';
-import { Row, Segmented, Slider, Stepper, Tap, Typo } from '../../../commons/components';
+import { StyleSheet, Switch, View } from 'react-native';
+import { BottomSheet } from '@toss/tds-react-native';
+import { Check, Row, Segmented, Slider, Stepper, Tap, Typo } from '../../../commons/components';
 import type { CoachVoice } from '../../../commons/components';
 import { ACCENT, C, MODES } from '../../../commons/constants';
 import { fmt } from '../../../commons/utils';
@@ -31,11 +31,8 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
       onClose={onClose}
       onDimmerClick={onClose}
       cta={
-        <BottomSheet.CTA>
-          <Button display="block" onPress={onClose}>
-            완료
-          </Button>
-        </BottomSheet.CTA>
+        // CTA가 Button을 직접 만든다. 여기에 Button을 또 넣으면 눌리는 것이 겹쳐 가장자리가 죽는다.
+        <BottomSheet.CTA onPress={onClose}>완료</BottomSheet.CTA>
       }
     >
       <View style={styles.body}>
@@ -122,9 +119,12 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
             onChange={(v) => onChange('gap', v)}
           />
           <Row label="간격을 불규칙하게">
+            {/* TDS Switch는 트랙이 blue500 고정이라 액센트를 못 얹는다. 이 자리에선 색이 더 중요하다. */}
             <Switch
-              checked={settings.randomGap}
-              onCheckedChange={(v) => onChange('randomGap', v)}
+              value={settings.randomGap}
+              onValueChange={(v) => onChange('randomGap', v)}
+              trackColor={{ false: C.line, true: ACCENT }}
+              thumbColor={C.white}
             />
           </Row>
         </View>
@@ -133,22 +133,21 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
           {voices.length > 0 ? (
             <View>
               <Typo level="caption" color={C.z500}>목소리</Typo>
-              <View style={styles.voiceRow}>
-                <Tap
-                  onPress={() => onChange('voiceURI', '')}
-                  style={[styles.voiceChip, settings.voiceURI === '' ? styles.on : styles.off]}
-                >
-                  <Typo level="small" weight="medium" color={C.white}>기본</Typo>
-                </Tap>
-                {voices.map((v) => {
+              {/* 한국어 목소리만 올라와서 목록이 짧다. 접었다 펴는 것보다 그대로 늘어놓는 편이 고르기 쉽다. */}
+              <View style={styles.voiceList}>
+                {[{ voiceURI: '', name: '기본 한국어 음성' }, ...voices].map((v) => {
                   const on = settings.voiceURI === v.voiceURI;
                   return (
                     <Tap
-                      key={v.voiceURI}
+                      key={v.voiceURI || 'default'}
                       onPress={() => onChange('voiceURI', v.voiceURI)}
-                      style={[styles.voiceChip, on ? styles.on : styles.off]}
+                      accessibilityLabel={v.name}
+                      style={[styles.voiceItem, on ? styles.voiceItemOn : null]}
                     >
-                      <Typo level="small" weight="medium" color={C.white}>{v.name}</Typo>
+                      <Typo level="small" weight="medium" color={on ? C.white : C.z300}>
+                        {v.name}
+                      </Typo>
+                      {on ? <Check size={16} color={C.white} /> : null}
                     </Tap>
                   );
                 })}
@@ -180,10 +179,19 @@ const styles = StyleSheet.create({
   lockNote: { backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 28 },
   group: { gap: 20, marginTop: 28 },
   divider: { gap: 24, marginTop: 28, paddingTop: 24, borderTopWidth: 1, borderTopColor: C.z900 },
-  voiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  voiceChip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8 },
-  on: { backgroundColor: ACCENT },
-  off: { backgroundColor: C.card },
+  voiceList: { gap: 4, marginTop: 8 },
+  voiceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  voiceItemOn: { borderColor: ACCENT },
   testBtn: {
     width: '100%',
     flexDirection: 'row',
