@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Check, Overlay, PillButton, Segmented, Tap, Typo } from '../../../commons/components';
-import { C, KINDS, KIND_LABEL } from '../../../commons/constants';
+import { C, COMBO_SIZE, KINDS, KIND_LABEL } from '../../../commons/constants';
 import type { Kind, Move } from '../../../commons/types';
 
 type Props = {
@@ -34,7 +34,11 @@ export function MovePickerOverlay({ visible, onClose, moves, label, onPick, chip
         <View>
           {/* 칩 묶음에만 배경을 둔다. 스크롤되는 버튼 위에 겹치면 글자가 안 읽힌다. */}
           <View style={styles.tray}>
-            {hasPicked ? chips : <Typo level="caption" color={C.z600}>동작을 눌러서 순서대로 쌓아봐.</Typo>}
+            {hasPicked ? (
+              chips
+            ) : (
+              <Typo level="caption" color={C.z600} style={styles.noteText}>동작을 눌러서 순서대로 쌓아봐.</Typo>
+            )}
           </View>
           <View style={styles.center}>
             <PillButton
@@ -50,7 +54,7 @@ export function MovePickerOverlay({ visible, onClose, moves, label, onPick, chip
       <View style={styles.grid}>
         {list.map((m) => (
           <Tap key={m.id} onPress={() => onPick(m.id)} style={styles.cell}>
-            <Typo level="small" color={C.z200}>{label(m.id)}</Typo>
+            <Typo level="small" color={C.z200} style={styles.cellText}>{label(m.id)}</Typo>
           </Tap>
         ))}
       </View>
@@ -60,6 +64,8 @@ export function MovePickerOverlay({ visible, onClose, moves, label, onPick, chip
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center' },
+  cellText: { fontSize: COMBO_SIZE.item },
+  noteText: { fontSize: COMBO_SIZE.note },
   body: { paddingTop: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: {

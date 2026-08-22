@@ -68,8 +68,8 @@ src/
 ## 지금 어디까지 왔나
 
 포팅과 구조 분리는 끝났다. `ShadowCoach/index.tsx`는 2104줄에서 556줄이 됐다.
-TDS 채택은 **선별로 바뀌었다** — `Checkbox` `Toast` `Slider` `Txt` `BottomSheet` `Button`이 들어갔고,
-`Switch`는 액센트를 못 얹어 RN 내장으로 되돌렸다. `Stepper`는 교체 불가로 결론이 났다.
+TDS 채택은 **선별로 바뀌었다** — `Toast` `Slider` `Txt` `BottomSheet` `Button`이 들어갔고,
+`Switch`와 `Checkbox`는 액센트를 못 얹어 자체 구현으로 되돌렸다. `Stepper`는 교체 불가로 결론이 났다.
 남은 `TextField` `SegmentedControl`의 조사 결과는 [TODO.md](TODO.md) 1번에 있다.
 
 **남은 일은 [TODO.md](TODO.md)에 우선순위대로 있다. 새 작업을 시작하기 전에 거기를 먼저 읽어라.**

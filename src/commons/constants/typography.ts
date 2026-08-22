@@ -32,6 +32,24 @@ export const TYPO = {
 } as const satisfies Record<string, TypoLevel>;
 
 /**
+ * 콤보 탭과 동작 고르기는 읽고 누르는 화면이라 TYPO 스케일보다 한 단계 크게 쓴다.
+ * TDS 키(t5 17 / t6 15 / t7 13)가 2px 간격이라 1px 조정은 여기서 직접 준다.
+ * `meta`와 `help`는 반대로 한 단계 작다 — 개수와 예시는 훑고 지나가는 정보다.
+ */
+export const COMBO_SIZE = {
+  /** 입력창 */
+  input: 17,
+  /** 목록 항목 · 큰 버튼 */
+  item: 16,
+  /** 안내문 · 작은 버튼 */
+  note: 14,
+  /** 콤보 개수 같은 부가 정보 */
+  meta: 12,
+  /** 입력 예시 */
+  help: 11,
+} as const;
+
+/**
  * TDS 스케일을 벗어나는 디스플레이 숫자 둘. 기획서가 크기를 직접 정한 자리다.
  * 스톱워치 시간은 링 지름에 비례해 따로 계산한다(ringMetrics).
  */

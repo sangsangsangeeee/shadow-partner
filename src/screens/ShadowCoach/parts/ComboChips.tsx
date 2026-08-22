@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { Tap, Typo, X } from '../../../commons/components';
-import { ACCENT, C } from '../../../commons/constants';
+import { ACCENT, C, COMBO_SIZE } from '../../../commons/constants';
 
 type Props = {
   /** 해석된 동작 id들. 적힌 순서 그대로다. */
@@ -22,7 +22,7 @@ export function ComboChips({ moves, label, onRemove }: Props) {
           accessibilityLabel={`${label(mid)} 지우기`}
           style={styles.chip}
         >
-          <Typo level="caption" weight="medium" color={C.white}>{label(mid)}</Typo>
+          <Typo level="caption" weight="medium" color={C.white} style={styles.chipText}>{label(mid)}</Typo>
           <X size={12} color={C.white} opacity={0.6} />
         </Tap>
       ))}
@@ -31,6 +31,7 @@ export function ComboChips({ moves, label, onRemove }: Props) {
 }
 
 const styles = StyleSheet.create({
+  chipText: { fontSize: COMBO_SIZE.note },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

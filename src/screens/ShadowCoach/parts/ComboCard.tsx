@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { Checkbox } from '@toss/tds-react-native';
 import {
   CardAction,
+  Check,
   MoreHorizontal,
   Pencil,
   Tap,
@@ -10,8 +10,15 @@ import {
   Typo,
   Volume2,
 } from '../../../commons/components';
-import { ACCENT, C } from '../../../commons/constants';
+import { ACCENT, C, COMBO_SIZE } from '../../../commons/constants';
 import type { Combo } from '../../../commons/types';
+
+/**
+ * 동작 태그 한 줄 높이 = 세로 여백 4 × 2 + `small`(t6) 줄 높이 22.5.
+ * 체크박스는 이 첫 줄 가운데에 맞춰야 태그와 눈높이가 같아진다.
+ */
+const TAG_LINE = 30.5;
+const CHECK_SIZE = 24;
 
 type Props = {
   combo: Combo;
@@ -61,14 +68,14 @@ function ComboCardView({
           accessibilityLabel={combo.on ? '훈련에서 빼기' : '훈련에 넣기'}
           style={styles.main}
         >
-          {/* 누르는 건 줄 전체다. 체크박스는 상태만 보여주고 터치는 안 받는다. */}
-          <View pointerEvents="none">
-            <Checkbox.Line checked={combo.on} size={24} />
+          {/* TDS Checkbox는 트랙이 blue500 고정이라 액센트를 못 얹는다. 상태만 보여주면 되는 자리다. */}
+          <View style={[styles.checkbox, combo.on ? styles.checkboxOn : styles.checkboxOff]}>
+            {combo.on ? <Check size={16} color={C.white} /> : null}
           </View>
           <View style={styles.moves}>
             {combo.moves.map((mid, i) => (
               <View key={`${mid}-${i}`} style={[styles.tag, combo.on ? styles.tagOn : null]}>
-                <Typo level="small" color={C.z200}>{label(mid)}</Typo>
+                <Typo level="small" color={C.z200} style={styles.tagText}>{label(mid)}</Typo>
               </View>
             ))}
           </View>
@@ -108,8 +115,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
+  checkbox: {
+    width: CHECK_SIZE,
+    height: CHECK_SIZE,
+    marginTop: (TAG_LINE - CHECK_SIZE) / 2,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: ACCENT },
+  checkboxOff: { borderWidth: 1, borderColor: C.z700 },
   moves: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  tagText: { fontSize: COMBO_SIZE.item },
   tagOn: { backgroundColor: C.line },
   more: { paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line },

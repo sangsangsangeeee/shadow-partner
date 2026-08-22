@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { C } from '../constants/colors';
 import { MONO, NUMS } from '../constants/layout';
+import { COMBO_SIZE } from '../constants/typography';
 import type { Icon } from './Icons';
 import { Tap } from './Tap';
 import { Typo } from './Typo';
@@ -79,7 +80,12 @@ export function CardAction({
   return (
     <Tap onPress={onPress} style={styles.cardAction}>
       <IconCmp size={16} color={danger ? C.white : C.z400} />
-      <Typo level="caption" weight={danger ? 'medium' : 'regular'} color={danger ? C.white : C.z400}>
+      <Typo
+        level="caption"
+        weight={danger ? 'medium' : 'regular'}
+        color={danger ? C.white : C.z400}
+        style={styles.cardActionText}
+      >
         {label}
       </Typo>
     </Tap>
@@ -107,4 +113,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
   },
+  /* 지금은 콤보 카드에서만 쓴다. 그 화면 글자 크기를 따른다. */
+  cardActionText: { fontSize: COMBO_SIZE.note },
 });

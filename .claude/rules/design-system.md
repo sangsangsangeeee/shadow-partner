@@ -29,7 +29,7 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 방향이 하나가 아니다. **TDS 2.0.5는 토스 브랜드 색에 묶여 있고 이 앱은 검정 + 딥틸이라,
 색을 여는 컴포넌트만 받아들인다.** 들어간 것:
 
-`TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Checkbox` `Toast`
+`TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Toast`
 
 **전역 테마로 뚫리는 건 `Button` 하나뿐이다.** 시드 토큰이 `color.primary` 하나고
 거기서 파생되는 게 `button`과 `bridge`뿐이라, 번들에서 `useTheme`을 읽는 파일이 그 둘밖에 없다.
@@ -42,8 +42,9 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 
 **FAB는 TDS `Button`으로 바꾸지 마라.** 알약·원형 커스텀 모양이라 맞지 않는다.
 
-**`Switch`는 TDS에서 되돌렸다.** 트랙이 `grey200 → blue500` 하드코딩이고
-`style`은 바깥 `Pressable`에만 걸려 트랙에 닿지 않는다. 액센트를 못 얹어서 RN 내장으로 돌아갔다.
+**`Switch`와 `Checkbox`는 TDS에서 되돌렸다.** 둘 다 `grey200 → blue500` 하드코딩이라 액센트를 못 얹는다.
+`Switch`는 `style`이 바깥 `Pressable`에만 걸려 트랙에 닿지도 않는다.
+`Switch`는 RN 내장으로, `Checkbox`는 24px 네모 + `Check` 아이콘으로 돌아갔다.
 
 **`BottomSheet.CTA`에 `Button`을 넣지 마라.** CTA가 `ComponentProps<typeof Button>`을 받아
 스스로 버튼을 만든다. 안에 또 넣으면 눌리는 것이 겹쳐 바깥 28px이 죽는다.

@@ -65,11 +65,6 @@ const Select = ({ children }: any) => <View>{children}</View>;
 
 export const BottomSheet = { Root, Header, CTA, HeaderDescription, Select };
 
-const CheckboxLine = ({ checked, ...rest }: any) => (
-  <View {...rest} accessibilityRole="checkbox" accessibilityState={{ checked: !!checked }} />
-);
-export const Checkbox = { Line: CheckboxLine, Circle: CheckboxLine };
-
 /** 실물은 duration이 지나면 스스로 onClose를 부른다. 대역도 그 시계를 그대로 흉내낸다. */
 function ToastBase({ open, text, button, duration, onClose }: any) {
   React.useEffect(() => {

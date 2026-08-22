@@ -1,8 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { LayoutGrid, Tap, Typo } from '../../../commons/components';
+import { AlertCircle, LayoutGrid, Tap, Typo } from '../../../commons/components';
 import { useExpiringState } from '../../../commons/hooks';
-import { ACCENT, C, MAXW } from '../../../commons/constants';
+import { ACCENT, C, COMBO_SIZE, MAXW } from '../../../commons/constants';
 import type { ParseResult } from '../../../commons/utils';
 import type { Combo } from '../../../commons/types';
 import { ComboCard, ComboChips } from '../parts';
@@ -38,6 +38,9 @@ type Props = {
 const HIGHLIGHT_MS = 2400;
 /** 찾아간 카드가 화면 위쪽에 걸리도록 남기는 여백. */
 const REVEAL_OFFSET = 140;
+
+/** 안내문 한 줄 높이. 아이콘을 첫 줄 가운데에 맞추는 데 같은 값을 쓴다. */
+const HELP_LINE = 19;
 
 /**
  * 콤보 탭.
@@ -128,17 +131,23 @@ export function CombosView({
         />
 
         {!draft.trim() ? (
-          <Typo level="caption" color={C.z600} style={styles.helpText}>
-            {`${label('jab')}${label('jab')}${label('cross')}`} ·{' '}
-            {`${label('jab')},${label('jab')},${label('cross')}`} ·{' '}
-            {`${label('jab')} ${label('jab')} ${label('cross')}`} · 1-2{'\n'}
-            붙여 써도, 쉼표를 찍어도, 번호로 써도 다 같게 인식해.
-          </Typo>
+          <View style={styles.helpRow}>
+            {/* 글자는 줄 높이의 가운데에 그려진다. 아이콘도 같은 상자에 넣어야 첫 줄과 맞물린다. */}
+            <View style={styles.helpIcon}>
+              <AlertCircle size={14} color={C.z600} />
+            </View>
+            <Typo level="caption" color={C.z600} style={styles.helpText}>
+              {`${label('jab')}${label('jab')}${label('cross')}`} ·{' '}
+              {`${label('jab')},${label('jab')},${label('cross')}`} ·{' '}
+              {`${label('jab')} ${label('jab')} ${label('cross')}`} · 1-2{'\n'}
+              붙여 써도, 쉼표를 찍어도, 번호로 써도 다 같게 인식해.
+            </Typo>
+          </View>
         ) : null}
 
         {hint ? (
           <View style={styles.notice}>
-            <Typo level="caption" color={C.white}>{hint}</Typo>
+            <Typo level="caption" color={C.white} style={styles.noteText}>{hint}</Typo>
           </View>
         ) : null}
 
@@ -147,18 +156,18 @@ export function CombosView({
             <View style={styles.parseChipRow}>
               <ComboChips moves={parsed.moves} label={label} onRemove={onRemoveChip} />
             </View>
-            <Typo level="caption" color={C.z600}>칩을 눌러서 뺄 수 있어.</Typo>
+            <Typo level="caption" color={C.z600} style={styles.noteText}>칩을 눌러서 뺄 수 있어.</Typo>
           </View>
         ) : null}
 
         {duplicate ? (
           <View style={styles.dupBox}>
-            <Typo level="caption" color={C.white}>
+            <Typo level="caption" color={C.white} style={styles.noteText}>
               {duplicate.on ? '이미 저장된 콤보야.' : '이미 저장돼 있는데 훈련에서 빠져 있어.'}
             </Typo>
             <View style={styles.dupRow}>
               <Tap onPress={() => reveal(duplicate.id)} style={styles.dupBtn}>
-                <Typo level="caption" color={C.z300}>목록에서 보기</Typo>
+                <Typo level="caption" color={C.z300} style={styles.noteText}>목록에서 보기</Typo>
               </Tap>
               {!duplicate.on ? (
                 <Tap
@@ -168,7 +177,7 @@ export function CombosView({
                   }}
                   style={styles.dupBtnAccent}
                 >
-                  <Typo level="caption" weight="medium" color={C.white}>훈련에 다시 넣기</Typo>
+                  <Typo level="caption" weight="medium" color={C.white} style={styles.noteText}>훈련에 다시 넣기</Typo>
                 </Tap>
               ) : null}
             </View>
@@ -176,19 +185,19 @@ export function CombosView({
         ) : null}
 
         {parsed.unknown.length > 0 ? (
-          <Typo level="caption" color={C.white}>
+          <Typo level="caption" color={C.white} style={styles.unknownText}>
             못 알아들음: {parsed.unknown.join(', ')} — 호출어 탭에서 추가할 수 있어.
           </Typo>
         ) : null}
 
         <Tap onPress={onOpenPicker} style={styles.wideGhostBtn}>
           <LayoutGrid size={16} color={C.z300} />
-          <Typo level="small" color={C.z300}>목록에서 고르기</Typo>
+          <Typo level="small" color={C.z300} style={styles.itemText}>목록에서 고르기</Typo>
         </Tap>
 
         {combos.length > 0 ? (
           <View style={styles.listHead}>
-            <Typo level="caption" color={C.z600}>
+            <Typo level="caption" color={C.z600} style={styles.metaText}>
               콤보 {combos.length}개 · {readyCount}개 사용
             </Typo>
             <Tap onPress={() => onSetAll(!allOn)} style={styles.listHeadBtn}>
@@ -203,7 +212,9 @@ export function CombosView({
             listTopRef.current = e.nativeEvent.layout.y;
           }}
         >
-          {combos.length === 0 ? <Typo level="small" color={C.z700}>아직 콤보가 없어.</Typo> : null}
+          {combos.length === 0 ? (
+            <Typo level="small" color={C.z700} style={styles.itemText}>아직 콤보가 없어.</Typo>
+          ) : null}
           {combos.map((c) => (
             <ComboCard
               key={c.id}
@@ -238,11 +249,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: COMBO_SIZE.input,
     color: C.white,
     marginBottom: 12,
   },
-  helpText: { fontSize: 12, lineHeight: 19, color: C.z600, marginBottom: 12 },
+  itemText: { fontSize: COMBO_SIZE.item },
+  noteText: { fontSize: COMBO_SIZE.note },
+  metaText: { fontSize: COMBO_SIZE.meta },
+  /* 아래 "목록에서 고르기" 버튼에 붙지 않도록 다른 안내들과 같은 여백을 준다. */
+  unknownText: { fontSize: COMBO_SIZE.note, marginBottom: 12 },
+  helpRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 12 },
+  helpIcon: { height: HELP_LINE, alignItems: 'center', justifyContent: 'center' },
+  helpText: { flex: 1, fontSize: COMBO_SIZE.help, lineHeight: HELP_LINE, color: C.z600 },
   notice: { backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 12 },
 
   parseBlock: { marginBottom: 12 },

@@ -166,6 +166,15 @@ export const ListOrdered: Icon = (p) => (
   </Frame>
 );
 
+export const AlertCircle: Icon = (p) => (
+  <Frame {...p}>
+    <Circle cx={12} cy={12} r={10} />
+    <Path d="M12 8v4" />
+    {/* round cap이라 길이 0의 선이 점으로 그려진다. lucide가 쓰는 방식. */}
+    <Path d="M12 16h.01" />
+  </Frame>
+);
+
 export const Megaphone: Icon = (p) => (
   <Frame {...p}>
     <Path d="m3 11 18-5v12L3 14v-3Z" />
