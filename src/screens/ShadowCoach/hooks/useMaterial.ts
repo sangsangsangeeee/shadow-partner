@@ -4,7 +4,8 @@ import { loadJSON, moveIndex, resolveName, saveJSON, uid } from '../../../common
 import type { Beats, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
 
 /** 되돌리기 토스트가 떠 있는 시간(ms). */
-const UNDO_MS = 6000;
+/** 되돌릴 기회를 주는 시간. 토스트가 이 시계를 들고 있다가 스스로 닫는다. */
+export const UNDO_MS = 6000;
 
 export type MaterialState = Material & {
   /** 저장소를 다 읽었는가. 읽기 전에 쓰면 빈 값으로 덮어쓴다. */
@@ -207,7 +208,7 @@ export type MaterialStore = {
 /** 리듀서에 저장소 읽기·쓰기와 되돌리기 만료를 붙인 것. */
 export function useMaterial(): MaterialStore {
   const [state, dispatch] = useReducer(materialReducer, INITIAL);
-  const { combos, settings, labels, customMoves, beats, loaded, undo } = state;
+  const { combos, settings, labels, customMoves, beats, loaded } = state;
 
   useEffect(() => {
     let alive = true;
@@ -247,13 +248,6 @@ export function useMaterial(): MaterialStore {
   useEffect(() => {
     if (loaded) saveJSON(STORAGE_KEYS.beats, beats);
   }, [beats, loaded]);
-
-  // 되돌릴 기회는 잠깐만 준다. 새로 지우면 시계도 새로 센다.
-  useEffect(() => {
-    if (!undo) return undefined;
-    const t = setTimeout(() => dispatch({ type: 'dismissUndo' }), UNDO_MS);
-    return () => clearTimeout(t);
-  }, [undo]);
 
   return useMemo(() => ({ state, dispatch }), [state]);
 }

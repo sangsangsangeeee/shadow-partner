@@ -59,3 +59,42 @@ const HeaderDescription = ({ children }: any) => <Text>{children}</Text>;
 const Select = ({ children }: any) => <View>{children}</View>;
 
 export const BottomSheet = { Root, Header, CTA, HeaderDescription, Select };
+
+export function Switch({ checked, onCheckedChange, ...rest }: any) {
+  return (
+    <Pressable
+      {...rest}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: !!checked }}
+      onPress={() => onCheckedChange?.(!checked)}
+    />
+  );
+}
+
+const CheckboxLine = ({ checked, ...rest }: any) => (
+  <View {...rest} accessibilityRole="checkbox" accessibilityState={{ checked: !!checked }} />
+);
+export const Checkbox = { Line: CheckboxLine, Circle: CheckboxLine };
+
+/** 실물은 duration이 지나면 스스로 onClose를 부른다. 대역도 그 시계를 그대로 흉내낸다. */
+function ToastBase({ open, text, button, duration, onClose }: any) {
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const t = setTimeout(() => onClose?.(), duration ?? 5000);
+    return () => clearTimeout(t);
+  }, [open, duration, onClose]);
+
+  if (!open) return null;
+  return (
+    <View>
+      <Text>{text}</Text>
+      {button}
+    </View>
+  );
+}
+const ToastButton = ({ children, onPress, ...rest }: any) => (
+  <Pressable {...rest} onPress={onPress} accessibilityRole="button">
+    <Text>{children}</Text>
+  </Pressable>
+);
+export const Toast = Object.assign(ToastBase, { Button: ToastButton });

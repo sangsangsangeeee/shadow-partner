@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 
 /*
@@ -203,6 +203,25 @@ describe('undo — 삭제와 되돌리기', () => {
 
     fireEvent.press(screen.getByLabelText('호출어'));
     expect(screen.queryByText('되돌리기')).toBeNull();
+  });
+
+  // 되돌릴 기회의 시계는 토스트가 들고 있다. 여기서 끊기면 되돌리기가 영영 안 사라진다.
+  it('6초가 지나면 스스로 접는다', async () => {
+    jest.useFakeTimers();
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
+    fireEvent.press(screen.getByText('삭제'));
+    await waitFor(() => expect(screen.getByText('되돌리기')).toBeTruthy());
+
+    await act(async () => {
+      jest.advanceTimersByTime(6100);
+    });
+    expect(screen.queryByText('되돌리기')).toBeNull();
+
+    // 접혀도 지운 건 지워진 채로 남는다
+    expect(screen.getByText('콤보 3개 · 3개 사용')).toBeTruthy();
+    jest.useRealTimers();
   });
 });
 

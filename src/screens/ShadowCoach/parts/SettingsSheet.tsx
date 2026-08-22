@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
-import { BottomSheet, Button } from '@toss/tds-react-native';
+import { StyleSheet, View } from 'react-native';
+import { BottomSheet, Button, Switch } from '@toss/tds-react-native';
 import { Row, Segmented, Slider, Stepper, Tap, Typo } from '../../../commons/components';
 import type { CoachVoice } from '../../../commons/components';
 import { ACCENT, C, MODES } from '../../../commons/constants';
@@ -123,10 +123,8 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
           />
           <Row label="간격을 불규칙하게">
             <Switch
-              value={settings.randomGap}
-              onValueChange={(v) => onChange('randomGap', v)}
-              trackColor={{ false: C.line, true: ACCENT }}
-              thumbColor={C.white}
+              checked={settings.randomGap}
+              onCheckedChange={(v) => onChange('randomGap', v)}
             />
           </Row>
         </View>

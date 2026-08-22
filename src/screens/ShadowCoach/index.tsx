@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { TDSProvider } from '@toss/tds-react-native';
+import { TDSProvider, Toast } from '@toss/tds-react-native';
 import {
   ACCENT,
   BASE_MOVES,
@@ -34,7 +34,7 @@ import {
   useLatestRef,
   useTimerBank,
 } from '../../commons/hooks';
-import { useCallouts, useMaterial, useTraining } from './hooks';
+import { useCallouts, useMaterial, useTraining, UNDO_MS } from './hooks';
 import { AddMoveOverlay, ComboChips, DoneOverlay, MovePickerOverlay, SettingsSheet } from './parts';
 import { CombosView, TrainView, WordsView } from './views';
 import type {
@@ -206,7 +206,9 @@ function Screen() {
   const toggleCombo = useCallback((c: Combo) => dispatch({ type: 'toggleCombo', id: c.id }), [dispatch]);
 
 
-  const restoreUndo = () => dispatch({ type: 'restoreUndo' });
+  // 토스트가 이 둘을 시계 이펙트의 의존성으로 잡는다. 매 렌더 새 함수를 주면 시계가 계속 되감긴다.
+  const restoreUndo = useCallback(() => dispatch({ type: 'restoreUndo' }), [dispatch]);
+  const dismissUndo = useCallback(() => dispatch({ type: 'dismissUndo' }), [dispatch]);
 
   const editCombo = useCallback(
     (c: Combo) => {
@@ -437,25 +439,21 @@ function Screen() {
         </View>
       ) : null}
 
-      {/* ---------- 되돌리기 토스트 (z 40) ---------- */}
-      {undo && tab !== 'train' ? (
-        <View
-          style={[
-            styles.toastLayer,
-            { bottom: (kb > 0 ? kb + 80 : (anyFabShown ? LAYER.toastWithFab : LAYER.toastAlone) + bottomSafe) },
-          ]}
-          pointerEvents="box-none"
-        >
-          <View style={[styles.inner, styles.toast]}>
-            <Typo level="caption" color={C.z400} numberOfLines={1}>
-              {undo.text}
-            </Typo>
-            <Tap onPress={restoreUndo} style={styles.toastBtn}>
-              <Typo level="caption" weight="medium" color={C.white}>되돌리기</Typo>
-            </Tap>
-          </View>
-        </View>
-      ) : null}
+      {/* ---------- 되돌리기 토스트 ---------- */}
+      {/*
+        TDS Toast는 자리를 스스로 잡는다 — bottomOffset에 하단 안전영역을 더해서 깐다.
+        그래서 여기서는 안전영역을 빼고 넘긴다. 두 번 더하면 그만큼 떠버린다.
+        훈련 탭에서는 띄우지 않는다(기획서 9장). 삭제는 콤보·호출어 탭에서만 일어나고
+        탭을 옮기면 goTab이 정리하므로, 안 떠 있는 동안 시계가 멈춰 있을 일은 없다.
+      */}
+      <Toast
+        open={undo != null && tab !== 'train'}
+        text={undo?.text ?? ''}
+        duration={UNDO_MS}
+        bottomOffset={kb > 0 ? kb + 80 - bottomSafe : anyFabShown ? LAYER.toastWithFab : LAYER.toastAlone}
+        onClose={dismissUndo}
+        button={<Toast.Button onPress={restoreUndo}>되돌리기</Toast.Button>}
+      />
 
       {/* ---------- 탭바 (z 40) ---------- */}
       <View style={[styles.tabLayer, { bottom: LAYER.tabBar + bottomSafe }]} pointerEvents="box-none">
@@ -540,21 +538,6 @@ const styles = StyleSheet.create({
   fabPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 32, height: 56, borderRadius: 28, elevation: 6 },
   fabPillOn: { backgroundColor: ACCENT },
   fabPillOff: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
-
-  toastLayer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 20, zIndex: LAYER.zToast },
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 8,
-  },
-  toastBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: ACCENT },
 
   tabLayer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 20, alignItems: 'center', zIndex: LAYER.zTabBar },
   tabBar: {

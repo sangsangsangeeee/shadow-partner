@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Checkbox } from '@toss/tds-react-native';
 import {
   CardAction,
-  Check,
   MoreHorizontal,
   Pencil,
   Tap,
@@ -61,8 +61,9 @@ function ComboCardView({
           accessibilityLabel={combo.on ? '훈련에서 빼기' : '훈련에 넣기'}
           style={styles.main}
         >
-          <View style={[styles.checkbox, combo.on ? styles.checkboxOn : styles.checkboxOff]}>
-            {combo.on ? <Check size={16} color={C.white} /> : null}
+          {/* 누르는 건 줄 전체다. 체크박스는 상태만 보여주고 터치는 안 받는다. */}
+          <View pointerEvents="none">
+            <Checkbox.Line checked={combo.on} size={24} />
           </View>
           <View style={styles.moves}>
             {combo.moves.map((mid, i) => (
@@ -107,9 +108,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  checkbox: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: ACCENT },
-  checkboxOff: { borderWidth: 1, borderColor: C.z700 },
   moves: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   tagOn: { backgroundColor: C.line },
