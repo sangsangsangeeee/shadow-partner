@@ -116,7 +116,7 @@ prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스�
 `paddingTop/Bottom` · `containerStyle` · `prefix`/`suffix`/`right`가 있고 `TextInputProps`가 통과한다.
 
 - [ ] [Field.tsx](../src/commons/components/Field.tsx) — 라벨이 내장이라 이 컴포넌트가 통째로 없어진다
-- [ ] [CombosView.tsx:122](../src/screens/ShadowCoach/views/CombosView.tsx#L122) — 콤보 입력. 칩 역동기화가 붙어 있다
+- [ ] [CombosView.tsx:125](../src/screens/ShadowCoach/views/CombosView.tsx#L125) — 콤보 입력. 칩 역동기화가 붙어 있다
 - [ ] [WordRow.tsx:71](../src/screens/ShadowCoach/parts/WordRow.tsx#L71) — **한 줄 인라인 편집기. 여기가 제일 위험**
 
 **색은 못 맞춘다.** 색 prop이 없고 전부 `useAdaptive()`가 정한다 —
@@ -159,9 +159,12 @@ TDS 교체가 끝난 상태로 한 번에. 여기를 통과하면 main에 병합
 **보류를 권한다. 이유 — 모양이 아직 움직이는 중이다.**
 
 원래 3곳 중복이었는데 TDS Toast가 하나를 다른 모양으로 바꿔서
-지금은 **동일한 표현이 2곳**뿐이다 ([index.tsx:411](../src/screens/ShadowCoach/index.tsx#L411), [429](../src/screens/ShadowCoach/index.tsx#L429)).
+지금은 **동일한 표현이 2곳**뿐이다 ([index.tsx:404](../src/screens/ShadowCoach/index.tsx#L404), [422](../src/screens/ShadowCoach/index.tsx#L422)).
 3곳일 때 묶었다면 추상을 만들고, TDS가 한 호출부를 어긋나게 만들고,
 그걸 억지로 늘리거나 도로 푸는 일을 했을 것이다.
+페이지 이식으로 셋째가 생겼다 — [Overlay.tsx](../src/commons/components/Overlay.tsx)의 발도
+`useKeyboardHeight`로 올라선다. 다만 그쪽은 `bottom: kb`(안전영역 없음)이고
+FAB는 `kb + 16` 대 `LAYER.fab + bottomSafe`라 아직 같은 식이 아니다.
 **변하는 중인 모양 위에 추상을 얹지 마라.** TDS 교체로 층이 더 줄면 그때 다시 센다.
 
 ### 3-2. `TrainView` 쪼개기
