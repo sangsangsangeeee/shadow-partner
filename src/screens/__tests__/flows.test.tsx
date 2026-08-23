@@ -1,10 +1,22 @@
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
+import Layout from '../../pages/_layout';
+import { resetMaterial } from '../ShadowCoach/hooks';
+import { goBackMock } from '../../commons/test-support/routerMock';
+import AddMove from '../AddMove';
 import { ACCENT } from '../../commons/constants';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
+
+/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
+
+/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -54,12 +66,20 @@ const saved = <T,>(key: string): T | null => {
   return raw ? (JSON.parse(raw) as T) : null;
 };
 
-beforeEach(() => store().clear());
+beforeEach(() => {
+  store().clear();
+  resetMaterial();
+  goBackMock.mockClear();
+});
 
 describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
   it('액센트 링이 둘러졌다가 2.4초 뒤 풀린다', async () => {
     jest.useFakeTimers();
-    render(<ShadowCoach />);
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
     await act(async () => {});
     fireEvent.press(screen.getByLabelText('콤보'));
 
@@ -86,18 +106,62 @@ describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
   });
 });
 
-describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
-  it('그 동작을 쓰던 콤보에서 빠지고, 되돌리면 전부 살아난다', async () => {
-    render(<ShadowCoach />);
+describe('shared — 동작 추가 화면과 본 화면이 자료를 나눠 쓴다', () => {
+  /*
+   * 라우터의 _layout은 화면을 하나씩 감싼다. 자료가 그 안에 살면 두 화면이 한 벌씩 갖게 되고,
+   * 추가 화면에서 넣은 동작이 본 화면에 영영 안 보인다. 실기기에서 그렇게 깨졌었다.
+   * 그래서 둘을 동시에 세워 둔다 — 실제로도 본 화면은 아래에 그대로 살아 있다.
+   */
+  it('추가 화면에서 넣은 동작이 본 화면의 호출어 목록에 바로 뜬다', async () => {
+    render(
+      <>
+        <Layout>
+          <ShadowCoach />
+        </Layout>
+        <Layout>
+          <AddMove />
+        </Layout>
+      </>
+    );
     await act(async () => {});
 
-    // 동작 하나 추가
     fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByLabelText('동작 추가'));
-    await waitFor(() => expect(screen.getByText('뭐라고 부를까')).toBeTruthy());
+    expect(screen.queryByText('엘보')).toBeNull();
+
     fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
     fireEvent.press(screen.getByText('추가'));
-    await waitFor(() => expect(screen.getByText('엘보')).toBeTruthy());
+    await act(async () => {});
+
+    // 저장소를 다시 읽지 않는다. 같은 자료를 보고 있어야만 이 줄이 통과한다.
+    expect(screen.getByText('엘보')).toBeTruthy();
+    // 등록을 마치면 왔던 길로 되돌아간다. navigate('/')면 화면이 한 장 더 쌓인다.
+    expect(goBackMock).toHaveBeenCalled();
+  });
+});
+
+describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
+  it('그 동작을 쓰던 콤보에서 빠지고, 되돌리면 전부 살아난다', async () => {
+    /*
+     * 동작 추가는 별도 화면(/add-move)이라 본 화면과 같은 트리에 없다.
+     * 자료가 트리 밖에 살아서 이어진다 — 먼저 세워 등록하고 걷어낸다. 실제 전환도 이 순서다.
+     */
+    const adder = render(
+      <Layout>
+        <AddMove />
+      </Layout>
+    );
+    await act(async () => {});
+    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
+    fireEvent.press(screen.getByText('추가'));
+    await act(async () => {});
+    adder.unmount();
+
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
 
     // 그 동작으로 콤보 두 개를 만든다
     fireEvent.press(screen.getByLabelText('콤보'));
@@ -132,7 +196,11 @@ describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
 
 describe('beats — 기본 동작 길이 변경·저장·되돌리기', () => {
   it('덮어쓰기가 저장되고 기본값으로 되돌아간다', async () => {
-    render(<ShadowCoach />);
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
     await act(async () => {});
     fireEvent.press(screen.getByLabelText('호출어'));
 
@@ -156,7 +224,11 @@ describe('beats — 기본 동작 길이 변경·저장·되돌리기', () => {
 describe('gap — 콤보 사이 유지 구간 안내', () => {
   it('콤보가 끝나면 안내 칩이 뜬다', async () => {
     jest.useFakeTimers();
-    render(<ShadowCoach />);
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
     await act(async () => {});
     fireEvent.press(screen.getByText('시작'));
 
@@ -181,7 +253,11 @@ describe('gap — 콤보 사이 유지 구간 안내', () => {
 describe('done — 완주, 통계 집계, 재시작', () => {
   it('마지막 라운드를 마치면 완료 화면이 뜨고 다시 시작할 수 있다', async () => {
     jest.useFakeTimers();
-    render(<ShadowCoach />);
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
     await act(async () => {});
 
     // 3라운드 × 3:00 + 휴식 2 × 1:00 + 준비 5초

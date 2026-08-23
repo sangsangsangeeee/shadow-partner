@@ -1,22 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { TDSProvider, Toast } from '@toss/tds-react-native';
+import { Toast } from '@toss/tds-react-native';
 import {
   ACCENT,
-  BASE_MOVES,
   C,
   LAYER,
   MAXW,
   TOUCH,
 } from '../../commons/constants';
-import {
-  buildAlias,
-  moveIndex,
-  norm,
-  parseCombo,
-  resolveBeat,
-  resolveName,
-} from '../../commons/utils';
+import { parseCombo, resolveName } from '../../commons/utils';
 import {
   Check,
   ListOrdered,
@@ -34,8 +26,10 @@ import {
   useLatestRef,
   useTimerBank,
 } from '../../commons/hooks';
-import { useCallouts, useMaterial, useTraining, UNDO_MS } from './hooks';
-import { AddMoveOverlay, ComboChips, DoneOverlay, MovePickerOverlay, SettingsSheet } from './parts';
+import { useWaitForReturnNavigator } from '@apps-in-toss/framework';
+import { useCallouts, useTraining, UNDO_MS } from './hooks';
+import { useMaterialContext } from './MaterialContext';
+import { ComboChips, DoneOverlay, MovePickerOverlay, SettingsSheet } from './parts';
 import { CombosView, TrainView, WordsView } from './views';
 import type {
   Beats,
@@ -46,11 +40,7 @@ import type {
   Settings,
   Tab,
 } from '../../commons/types';
-import {
-  SafeAreaProvider,
-  initialWindowMetrics,
-  useSafeAreaInsets,
-} from '@granite-js/native/react-native-safe-area-context';
+import { useSafeAreaInsets } from '@granite-js/native/react-native-safe-area-context';
 
 
 
@@ -61,21 +51,15 @@ const TABS: { id: Tab; label: string; icon: typeof Timer }[] = [
 ];
 
 export default function ShadowCoach() {
-  return (
-    <TDSProvider colorPreference="dark" token={{ color: { primary: ACCENT } }}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <Screen />
-      </SafeAreaProvider>
-    </TDSProvider>
-  );
+  return <Screen />;
 }
 
 function Screen() {
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
 
-  /* 저장되는 훈련 자료는 전부 한 리듀서에 있다. 화면 세 개가 같이 읽는다. */
-  const { state: material, dispatch } = useMaterial();
+  /* 저장되는 훈련 자료는 전부 한 리듀서에 있다. 별도 화면이 된 동작 고르기·추가와도 나눠 쓴다. */
+  const { state: material, dispatch, moveMap, alias, allMoves, label, beatOf } = useMaterialContext();
   const { combos, settings, labels, customMoves, beats, undo } = material;
 
   const [tab, setTab] = useState<Tab>('train');
@@ -86,7 +70,8 @@ function Screen() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const [wordKind, setWordKind] = useState<Kind>('punch');
-  const [addOpen, setAddOpen] = useState(false);
+
+  const openScreen = useWaitForReturnNavigator();
   const [comboHint, setComboHint] = useState('');
   const kb = useKeyboardHeight();
 
@@ -97,10 +82,6 @@ function Screen() {
 
   /* ---- 파생값 ---- */
 
-  const moveMap = useMemo(() => moveIndex(customMoves), [customMoves]);
-
-  const alias = useMemo(() => buildAlias(customMoves, labels), [customMoves, labels]);
-
   /* 타이머 콜백 안에서 읽을 최신값. 의존성에 넣으면 타이머가 다시 만들어져 끊긴다. */
   const voiceRef = useLatestRef(voice);
   const stRef = useLatestRef(settings);
@@ -110,8 +91,6 @@ function Screen() {
   const customMovesRef = useLatestRef(customMoves);
   const beatsRef = useLatestRef<Beats>(beats);
 
-  const label = useCallback((id: string) => resolveName(id, labels, moveMap), [labels, moveMap]);
-
   /**
    * 콜백 안에서 쓰는 이름 조회. label과 결과는 같지만 신원이 고정돼 있다.
    * label 쪽은 이름이 바뀌면 신원도 바뀌어야 memo를 건 자식이 다시 그려지므로 따로 둔다.
@@ -120,8 +99,6 @@ function Screen() {
     (id: string) => resolveName(id, labelRef.current, moveRef.current),
     [labelRef, moveRef]
   );
-
-  const beatOf = useCallback((id: string) => resolveBeat(id, beats, moveMap), [beats, moveMap]);
 
   const parsed = useMemo(() => parseCombo(draft, alias), [draft, alias]);
   const dupCombo = parsed.moves.length
@@ -249,13 +226,6 @@ function Screen() {
   const resetBaseLabels = () => dispatch({ type: 'resetBaseMoves' });
 
   /** 이름 중복만 여기서 막는다. 별칭 사전이 화면 쪽에 있기 때문이다. */
-  const addMove = (name: string, kind: Kind, beat: number): string | null => {
-    if (alias[norm(name)]) return '이미 같은 말이 등록돼 있어.';
-    dispatch({ type: 'addMove', name, kind, beat });
-    // 방금 넣은 동작이 보이도록 호출어 목록을 그 분류로 옮겨 둔다.
-    setWordKind(kind);
-    return null;
-  };
 
   /*
    * 호출어 목록의 한 줄이 부르는 것들. 전부 신원이 고정돼야 memo가 산다.
@@ -291,6 +261,18 @@ function Screen() {
 
   const deleteMove = useCallback((id: string) => dispatch({ type: 'removeMove', id }), [dispatch]);
 
+  /**
+   * 동작 추가는 별도 화면이라 결과를 돌려받지 못한다. 돌아온 뒤 목록을 다시 보고 판단한다.
+   * 방금 넣은 게 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다.
+   */
+  const openAddMove = useCallback(async () => {
+    const before = customMovesRef.current.length;
+    await openScreen('/add-move');
+    const after = customMovesRef.current;
+    const added = after[after.length - 1];
+    if (added && after.length > before) setWordKind(added.kind);
+  }, [openScreen, customMovesRef]);
+
   /* ---- 설정 시트 ---- */
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
@@ -317,7 +299,6 @@ function Screen() {
   /* ---- 렌더 ---- */
 
   const ready = combos.filter((c) => c.on && c.moves.length).length;
-  const allMoves = [...BASE_MOVES, ...customMoves];
   const wordList = allMoves.filter((m) => m.kind === wordKind);
 
   const bottomSafe = insets.bottom;
@@ -441,7 +422,7 @@ function Screen() {
         <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabEnd]} pointerEvents="box-none">
             <Tap
-              onPress={() => setAddOpen(true)}
+              onPress={openAddMove}
               accessibilityLabel="동작 추가"
               style={styles.fabCircle}
             >
@@ -495,7 +476,6 @@ function Screen() {
         </View>
       </Animated.View>
 
-      <AddMoveOverlay visible={addOpen} onClose={() => setAddOpen(false)} onAdd={addMove} />
       <DoneOverlay
         visible={phase === 'done'}
         settings={settings}

@@ -1,10 +1,20 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
+import Layout from '../../pages/_layout';
+import { resetMaterial } from '../ShadowCoach/hooks';
 
 /* 아래 목들은 다른 화면 테스트와 같은 이유로 경계에서 갈아끼운다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
+
+/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
+
+/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -80,12 +90,17 @@ jest.mock('../ShadowCoach/parts', () => {
 beforeEach(() => {
   const store = (globalThis as Record<string, unknown>).__memoStore as Map<string, string> | undefined;
   store?.clear();
+  resetMaterial();
   mockCardProps.length = 0;
   mockRowProps.length = 0;
 });
 
 const setup = async () => {
-  render(<ShadowCoach />);
+  render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
   await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
 };
 

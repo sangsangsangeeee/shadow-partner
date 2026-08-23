@@ -1,8 +1,8 @@
 import { createRoute } from '@granite-js/react-native';
-import ShadowCoach from '../screens/ShadowCoach';
+import AddMove from '../screens/AddMove';
 import { SCREEN } from './screenOptions';
 
-export const Route = createRoute('/', {
-  component: ShadowCoach,
+export const Route = createRoute('/add-move', {
+  component: AddMove,
   screenOptions: SCREEN,
 });

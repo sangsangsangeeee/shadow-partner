@@ -1,6 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
+import Layout from '../../pages/_layout';
+import { resetMaterial } from '../ShadowCoach/hooks';
 
 /*
  * @granite-js/native/* 는 실제 패키지를 그대로 재수출하는 얇은 껍데기다.
@@ -9,6 +11,14 @@ import ShadowCoach from '../ShadowCoach';
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
+
+/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
+
+/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -58,13 +68,18 @@ jest.mock('@apps-in-toss/native-modules', () => ({
 }));
 
 beforeEach(() => {
-  // 저장소는 파일 안에서 공유된다. 테스트마다 초기 상태에서 시작한다.
+  // 저장소도 자료도 파일 안에서 공유된다. 테스트마다 초기 상태에서 시작한다.
   const store = (globalThis as Record<string, unknown>).__sbcStore as Map<string, string> | undefined;
   store?.clear();
+  resetMaterial();
 });
 
 const setup = async () => {
-  const view = render(<ShadowCoach />);
+  const view = render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
   // 저장소를 읽고 나면 loaded가 켜진다. 탭바는 어느 탭에서도 서 있어서 렌더 완료 신호로 삼는다.
   await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
   return view;

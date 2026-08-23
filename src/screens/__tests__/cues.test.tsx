@@ -2,9 +2,19 @@ import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react-native';
 import { generateHapticFeedback, setScreenAwakeMode } from '@apps-in-toss/native-modules';
 import ShadowCoach from '../ShadowCoach';
+import Layout from '../../pages/_layout';
+import { resetMaterial } from '../ShadowCoach/hooks';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
+
+/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
+
+/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -42,6 +52,9 @@ const haptic = generateHapticFeedback as jest.Mock;
 const awake = setScreenAwakeMode as jest.Mock;
 
 /** 진동 종류별 호출 횟수 */
+// 자료는 트리 밖에 산다. 테스트마다 초기 상태에서 시작한다.
+beforeEach(resetMaterial);
+
 const buzzCounts = () =>
   haptic.mock.calls.reduce<Record<string, number>>((acc, [arg]) => {
     const t = (arg as { type: string }).type;
@@ -60,7 +73,11 @@ describe('벨·클래퍼 — 소리가 안 나는 기기에서도 몸으로 안�
   });
 
   const startTraining = async () => {
-    render(<ShadowCoach />);
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
     await act(async () => {});
     fireEvent.press(screen.getByText('시작'));
     await act(async () => {});

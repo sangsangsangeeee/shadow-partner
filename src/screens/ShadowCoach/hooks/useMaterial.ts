@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { BASE_MOVES, DEFAULTS, STORAGE_KEYS } from '../../../commons/constants';
 import { loadJSON, moveIndex, resolveName, saveJSON, uid } from '../../../commons/utils';
 import type { Beats, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
@@ -202,52 +202,85 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
 
 export type MaterialStore = {
   state: MaterialState;
-  dispatch: React.Dispatch<MaterialAction>;
+  dispatch: (action: MaterialAction) => void;
 };
 
-/** 리듀서에 저장소 읽기·쓰기와 되돌리기 만료를 붙인 것. */
+/*
+ * 리듀서 상태는 리액트 트리 밖에 산다.
+ *
+ * 라우터의 _layout은 화면을 하나씩 감싼다. 트리 안에 두면 훈련 화면과 동작 추가 화면이
+ * 자료를 한 벌씩 갖게 되어 한쪽에서 넣은 동작이 다른 쪽에 안 보인다.
+ * 게다가 둘 다 저장소에 쓰므로 늦게 쓴 쪽이 상대가 넣은 것을 덮어버린다.
+ */
+let current: MaterialState = INITIAL;
+const listeners = new Set<() => void>();
+
+const getSnapshot = () => current;
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/* 조각마다 따로 저장한다. 하나를 고쳤을 때 다섯을 다 쓰지 않는다. */
+function persist(prev: MaterialState, next: MaterialState) {
+  // 다 읽기 전에 쓰면 빈 값으로 덮는다. 방금 읽어 온 값을 되쓰는 것도 이 줄이 막는다.
+  if (!prev.loaded) return;
+  if (next.combos !== prev.combos) saveJSON(STORAGE_KEYS.combos, next.combos);
+  if (next.settings !== prev.settings) saveJSON(STORAGE_KEYS.settings, next.settings);
+  if (next.labels !== prev.labels) saveJSON(STORAGE_KEYS.labels, next.labels);
+  if (next.customMoves !== prev.customMoves) saveJSON(STORAGE_KEYS.moves, next.customMoves);
+  if (next.beats !== prev.beats) saveJSON(STORAGE_KEYS.beats, next.beats);
+}
+
+/** 신원이 영영 고정된 dispatch. memo를 건 자식들이 이걸 믿고 있다. */
+export function dispatchMaterial(action: MaterialAction) {
+  const prev = current;
+  const next = materialReducer(prev, action);
+  if (next === prev) return;
+  current = next;
+  persist(prev, next);
+  listeners.forEach((listener) => listener());
+}
+
+let loading = false;
+
+/** 화면이 몇 개가 서든 저장소는 한 번만 읽는다. */
+function hydrateOnce() {
+  if (loading || current.loaded) return;
+  loading = true;
+  void (async () => {
+    const c = await loadJSON<Combo[]>(STORAGE_KEYS.combos);
+    const s = await loadJSON<Partial<Settings>>(STORAGE_KEYS.settings);
+    const l = await loadJSON<Labels>(STORAGE_KEYS.labels);
+    const m = await loadJSON<Move[]>(STORAGE_KEYS.moves);
+    const b = await loadJSON<Beats>(STORAGE_KEYS.beats);
+    const value: Partial<Material> = {};
+    if (c) value.combos = c;
+    if (s) value.settings = { ...DEFAULTS, ...s };
+    if (l) value.labels = l;
+    if (m) value.customMoves = m;
+    if (b) value.beats = b;
+    dispatchMaterial({ type: 'hydrate', value });
+  })();
+}
+
+/** 트리 밖에 사는 값은 저절로 초기화되지 않는다. 테스트가 화면을 여러 번 세운다. */
+export function resetMaterial() {
+  current = INITIAL;
+  loading = false;
+  listeners.forEach((listener) => listener());
+}
+
+/** 리듀서에 저장소 읽기·쓰기를 붙인 것. */
 export function useMaterial(): MaterialStore {
-  const [state, dispatch] = useReducer(materialReducer, INITIAL);
-  const { combos, settings, labels, customMoves, beats, loaded } = state;
+  const state = useSyncExternalStore(subscribe, getSnapshot);
 
   useEffect(() => {
-    let alive = true;
-    void (async () => {
-      const c = await loadJSON<Combo[]>(STORAGE_KEYS.combos);
-      const s = await loadJSON<Partial<Settings>>(STORAGE_KEYS.settings);
-      const l = await loadJSON<Labels>(STORAGE_KEYS.labels);
-      const m = await loadJSON<Move[]>(STORAGE_KEYS.moves);
-      const b = await loadJSON<Beats>(STORAGE_KEYS.beats);
-      if (!alive) return;
-      const value: Partial<Material> = {};
-      if (c) value.combos = c;
-      if (s) value.settings = { ...DEFAULTS, ...s };
-      if (l) value.labels = l;
-      if (m) value.customMoves = m;
-      if (b) value.beats = b;
-      dispatch({ type: 'hydrate', value });
-    })();
-    return () => {
-      alive = false;
-    };
+    hydrateOnce();
   }, []);
 
-  /* 조각마다 따로 저장한다. 하나를 고쳤을 때 다섯을 다 쓰지 않는다. */
-  useEffect(() => {
-    if (loaded) saveJSON(STORAGE_KEYS.combos, combos);
-  }, [combos, loaded]);
-  useEffect(() => {
-    if (loaded) saveJSON(STORAGE_KEYS.settings, settings);
-  }, [settings, loaded]);
-  useEffect(() => {
-    if (loaded) saveJSON(STORAGE_KEYS.labels, labels);
-  }, [labels, loaded]);
-  useEffect(() => {
-    if (loaded) saveJSON(STORAGE_KEYS.moves, customMoves);
-  }, [customMoves, loaded]);
-  useEffect(() => {
-    if (loaded) saveJSON(STORAGE_KEYS.beats, beats);
-  }, [beats, loaded]);
-
-  return useMemo(() => ({ state, dispatch }), [state]);
+  return useMemo(() => ({ state, dispatch: dispatchMaterial }), [state]);
 }
