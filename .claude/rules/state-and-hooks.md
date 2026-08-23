@@ -20,6 +20,25 @@
 return useMemo(() => ({ state, dispatch }), [state]);
 ```
 
+## 자료는 리액트 트리 밖에 산다
+
+`useMaterial`은 `useReducer`가 아니라 **모듈 상태 + `useSyncExternalStore`**다.
+
+라우터의 `_layout`은 화면을 통째로 감싸지 않고 **Screen 하나씩** 감싼다(`useRouterControls`).
+훈련 화면과 동작 추가 화면이 동시에 살아 있으면 프로바이더가 두 벌 서고,
+자료를 트리 안에 두면 한쪽에서 넣은 동작이 다른 쪽에 안 보인다.
+게다가 둘 다 저장소에 써서 **늦게 쓴 쪽이 상대가 넣은 것을 덮는다.** 실기기에서 그렇게 깨졌다.
+
+- 저장소 읽기는 `hydrateOnce()`가 한 번만 한다
+- 저장은 `dispatchMaterial` 안에서 **바뀐 조각만** 쓴다(이펙트 다섯 개가 사라졌다)
+- `dispatchMaterial`은 모듈 상수라 신원이 영영 고정이다
+
+**트리 밖에 사는 값은 저절로 초기화되지 않는다.** 그래서 `resetMaterial()`이 있고,
+화면을 세우는 테스트는 `beforeEach`에서 반드시 부른다.
+
+`MaterialContext`는 자료를 나르는 게 아니다 — 파생 조회(`moveMap` `alias` `label` `beatOf`)를
+화면 안에서 한 번만 계산하려고 있는 것이다.
+
 ## 리듀서에 넣을 것과 넣지 말 것
 
 경계는 **"저장소에 들어가는가"**다.

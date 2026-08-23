@@ -1,6 +1,6 @@
 # 무엇을 어느 층에서 확인하는가
 
-92개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
+95개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
 5초 제한에 걸린다. 회귀가 아니라 부하 문제다.
 
 ## 층
@@ -31,6 +31,17 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 
 `@granite-js/native/*`(svg · safe-area · async-storage · webview)와
 `@apps-in-toss/native-modules`도 각 테스트 파일 상단에서 mock한다.
+
+화면이 라우트로 갈라지면서 둘이 더 붙었다 —
+`@granite-js/react-native`는 `routerMock`(navigation), `@apps-in-toss/framework`는
+`frameworkMock`(갔다 돌아오는 것을 기다리는 훅). **둘 다 돌려주는 객체를 한 벌로 고정한다.**
+렌더마다 새로 만들면 그걸 의존성으로 쓰는 콜백의 신원이 깨져 memo 테스트가 엉뚱하게 실패한다.
+
+### 화면을 세우는 테스트는 자료를 되감는다
+
+자료가 리액트 트리 밖에 살아서 **언마운트해도 남는다.** `beforeEach`에서 `resetMaterial()`을
+부르지 않으면 앞 테스트가 넣은 콤보가 다음 테스트로 새어 나간다. AsyncStorage 대역을 비우는 것만으로는
+부족하다 — 메모리와 저장소 둘 다 되감아야 한다.
 
 리듀서 테스트처럼 렌더를 안 하는 파일도 **import 사슬이 팔레트와 저장소에 닿으면**
 TDS mock과 AsyncStorage mock이 필요하다.

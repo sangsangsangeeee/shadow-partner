@@ -17,7 +17,7 @@ const onToggle = useCallback((c: Combo) => dispatch({ type: 'toggleCombo', id: c
 {combos.map((c) => <ComboCard combo={c} onToggle={onToggle} />)}
 ```
 
-`dispatch`는 리액트가 항등을 보장한다. 그래서 리듀서로 옮기면서 `combosRef`를 지울 수 있었다 —
+`dispatch`는 신원이 고정돼 있다(지금은 모듈 상수다). 그래서 리듀서로 옮기면서 `combosRef`를 지울 수 있었다 —
 목록을 읽으려고 ref를 들 필요가 없어졌다.
 
 의존성이 자주 바뀌어서 `useCallback`이 소용없을 때는 `useLatestRef`로 스냅샷을 잡고
