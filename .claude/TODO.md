@@ -3,11 +3,11 @@
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
 TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야 한 번만 본다.
 
-마지막 갱신: 동작 추가를 페이지로 옮기는 중. 브랜치 `feat/shadow-coach`, main 미병합, **커밋 전**.
+마지막 갱신: 동작 추가를 페이지로(`4d8db8d`). 브랜치 `feat/shadow-coach`, main 미병합.
 
 ---
 
-## 진행 중 — 겹침(Modal)을 페이지로. **아직 커밋 안 함**
+## 진행 중 — 겹침(Modal)을 페이지로. **기기 확인 대기**
 
 풀모달이 토스 상태바까지 덮는 문제에서 시작했다. 토스는 헤더를 숨기는 API를 주지 않고
 [화면 전환 문서](https://developers-apps-in-toss.toss.im/documentation/react-native/screen-navigation)가
