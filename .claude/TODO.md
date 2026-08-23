@@ -3,7 +3,48 @@
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
 TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야 한 번만 본다.
 
-마지막 갱신: 훈련 화면 손질까지. 브랜치 `feat/shadow-coach`, main 미병합.
+마지막 갱신: 동작 추가를 페이지로 옮기는 중. 브랜치 `feat/shadow-coach`, main 미병합, **커밋 전**.
+
+---
+
+## 진행 중 — 겹침(Modal)을 페이지로. **아직 커밋 안 함**
+
+풀모달이 토스 상태바까지 덮는 문제에서 시작했다. 토스는 헤더를 숨기는 API를 주지 않고
+[화면 전환 문서](https://developers-apps-in-toss.toss.im/documentation/react-native/screen-navigation)가
+라우팅을 권한다. 그래서 **동작 추가**를 `/add-move` 라우트로 내보냈다.
+
+딸려 온 구조 변경 — **자료가 리액트 트리 밖으로 나갔다.**
+라우터의 `_layout`은 화면을 하나씩 감싼다(`useRouterControls`). 트리 안에 두면 두 화면이
+자료를 한 벌씩 갖고, 둘 다 저장소에 써서 늦게 쓴 쪽이 상대를 덮는다. 실기기에서 그렇게 깨졌다.
+[useMaterial.ts](../src/screens/ShadowCoach/hooks/useMaterial.ts)가 `useSyncExternalStore`로 바뀐 이유다.
+
+기기에서 확인된 것 (2026-08-23):
+
+- [x] `+` → 페이지 전환 · 토스 헤더 노출 · 뒤로가기로 나감
+- [x] 등록한 동작이 목록에 안 뜸 → 자료를 트리 밖으로
+- [x] 스택이 한 장 더 쌓임 → `navigate('/')`를 `goBack()`으로
+- [x] 키보드가 추가 버튼을 가림 → `KeyboardAvoidingView`를 걷어내고 `useKeyboardHeight`로
+- [x] 전환 중 자동 포커스로 버벅임 → `autoFocus` 제거
+- [x] 전환 중 흰 화면 번쩍임 → 라우트마다 `contentStyle` 검정 ([screenOptions.ts](../src/pages/screenOptions.ts))
+
+아직 기기에서 안 본 것:
+
+- [ ] 위 네 고침이 실제로 먹는지 (특히 키보드는 iOS·안드로이드 둘 다)
+- [ ] 흰 번쩍임이 정말 사라졌는지. 남으면 다음 용의자는 토스 네이티브 헤더(`RNNavigationBar`) —
+      `granite.config.ts`의 `navigationBar.theme`로만 건드릴 수 있고 지금은 `light` 기본값이다
+
+남은 단계:
+
+- [ ] **동작 고르기(`MovePickerOverlay`)도 페이지로.** `draft`는 화면 상태로 남기기로 했으니
+      고른 동작은 파라미터로 돌려줘야 한다 — 추가 화면과 달리 결과를 들고 와야 하는 자리다.
+- [ ] 동작 고르기 안의 펀치·킥·방어·풋워크 **스와이프 전환** (`Gesture.Pan()` + `activeOffsetX`).
+      Overlay 구조가 흔들리는 중이라 미뤄 뒀다.
+- [ ] `Overlay` 제목과 `Segmented` 글자 1px 키우기. 다른 화면과 공유해서 같이 움직인다.
+
+**루트 `pages/`와 `src/pages/`는 통일할 수 없다.** 플러그인이 스캔 경로(`pages`)와
+출력 경로(`src/router.gen.ts`)를 하드코딩하고 옵션은 `watch` 하나뿐이다.
+새 라우트는 두 파일이 짝이다. 루트 쪽을 **빈 파일로** 먼저 만들면 플러그인이 템플릿을 채운다
+(내용이 있으면 `add`에서 그냥 빠져나간다). 이미 있는 파일은 다시 저장하면 `router.gen.ts`가 갱신된다.
 
 ---
 
@@ -54,12 +95,12 @@ TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
 제네릭 우려는 사실이었다. `Root`는 `value: string` 고정인데
 `BEAT_SEGMENTS`의 값은 **number**(0.4·0.5·0.65·0.85·1.05)다.
 
-- [ ] `AddMoveOverlay`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
+- [ ] `AddMove`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
 - [ ] `name: string`이 필수 — 6곳 전부 새 prop
 - [ ] 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
 - [ ] `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
       동작 길이 5칸에서 줄이지 못한다
-- [ ] 6곳 교체 — AddMoveOverlay(2) · SettingsSheet · MovePickerOverlay · WordRow · WordsView
+- [ ] 6곳 교체 — AddMove(2) · SettingsSheet · MovePickerOverlay · WordRow · WordsView
 - [ ] [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄 삭제
 
 **색** — 인디케이터가 `colorPreference`만 보고 `dark → inverseGrey300`으로 하드코딩돼 있다.
