@@ -2,7 +2,6 @@ export * from './Field';
 export * from './Icons';
 export * from './Motion';
 export * from './Overlay';
-export * from './PillButton';
 export * from './Rows';
 export * from './Segmented';
 export * from './Slider';

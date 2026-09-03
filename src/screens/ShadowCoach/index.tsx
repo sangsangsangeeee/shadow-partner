@@ -26,10 +26,9 @@ import {
   useLatestRef,
   useTimerBank,
 } from '../../commons/hooks';
-import { useWaitForReturnNavigator } from '@apps-in-toss/framework';
 import { useCallouts, useTraining, UNDO_MS } from './hooks';
 import { useMaterialContext } from './MaterialContext';
-import { ComboChips, DoneOverlay, MovePickerOverlay, SettingsSheet } from './parts';
+import { AddMoveSheet, ComboChips, DoneOverlay, MovePickerSheet, SettingsSheet } from './parts';
 import { CombosView, TrainView, WordsView } from './views';
 import type {
   Beats,
@@ -68,10 +67,10 @@ function Screen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [addMoveOpen, setAddMoveOpen] = useState(false);
 
   const [wordKind, setWordKind] = useState<Kind>('punch');
 
-  const openScreen = useWaitForReturnNavigator();
   const [comboHint, setComboHint] = useState('');
   const kb = useKeyboardHeight();
 
@@ -261,23 +260,17 @@ function Screen() {
 
   const deleteMove = useCallback((id: string) => dispatch({ type: 'removeMove', id }), [dispatch]);
 
-  /**
-   * 동작 추가는 별도 화면이라 결과를 돌려받지 못한다. 돌아온 뒤 목록을 다시 보고 판단한다.
-   * 방금 넣은 게 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다.
-   */
-  const openAddMove = useCallback(async () => {
-    const before = customMovesRef.current.length;
-    await openScreen('/add-move');
-    const after = customMovesRef.current;
-    const added = after[after.length - 1];
-    if (added && after.length > before) setWordKind(added.kind);
-  }, [openScreen, customMovesRef]);
-
-  /* ---- 설정 시트 ---- */
+  /* ---- 시트 ---- */
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
   const openSheet = useCallback(() => setSheetOpen(true), []);
   const openPicker = useCallback(() => setPickerOpen(true), []);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const openAddMove = useCallback(() => setAddMoveOpen(true), []);
+  const closeAddMove = useCallback(() => setAddMoveOpen(false), []);
+
+  /* 방금 넣은 동작이 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다. 그 분류로 옮겨준다. */
+  const afterAddMove = useCallback((kind: Kind) => setWordKind(kind), []);
 
   const changeDraft = useCallback((text: string) => {
     setDraft(text);
@@ -309,14 +302,17 @@ function Screen() {
   const [tabH, setTabH] = useState(0);
   const tabSlide = useRef(new Animated.Value(0)).current;
 
+  /* 탭바가 zIndex 40이라 TDS 시트(zIndex 없음) 위로 올라온다. 어느 시트가 열려도 비켜줘야 한다. */
+  const anySheetOpen = sheetOpen || pickerOpen || addMoveOpen;
+
   useEffect(() => {
     Animated.timing(tabSlide, {
-      toValue: sheetOpen ? tabH + LAYER.tabBar + bottomSafe : 0,
+      toValue: anySheetOpen ? tabH + LAYER.tabBar + bottomSafe : 0,
       // 기획서 3장이 정한 오르내림 속도(220~280ms)를 그대로 쓴다.
       duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [sheetOpen, tabH, bottomSafe, tabSlide]);
+  }, [anySheetOpen, tabH, bottomSafe, tabSlide]);
 
   const goTab = (id: Tab) => {
     setTab(id);
@@ -400,7 +396,8 @@ function Screen() {
 
 
       {/* ---------- 저장 / 동작 추가 (z 30) ---------- */}
-      {tab === 'combos' && saveFabShown ? (
+      {/* FAB도 시트 위로 떠오른다(z 30 vs 시트 zIndex 없음). 시트가 열리면 걷어낸다. */}
+      {tab === 'combos' && saveFabShown && !anySheetOpen ? (
         <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabRow]} pointerEvents="box-none">
             {editingId ? (
@@ -418,7 +415,7 @@ function Screen() {
         </View>
       ) : null}
 
-      {tab === 'words' ? (
+      {tab === 'words' && !anySheetOpen ? (
         <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabEnd]} pointerEvents="box-none">
             <Tap
@@ -449,13 +446,12 @@ function Screen() {
       />
 
       {/* ---------- 탭바 (z 40) ---------- */}
-      {/* 탭바가 zIndex 40이라 TDS 시트(zIndex 없음) 위로 올라온다. 시트가 열리면 아래로 비켜준다. */}
       <Animated.View
         style={[
           styles.tabLayer,
           { bottom: LAYER.tabBar + bottomSafe, transform: [{ translateY: tabSlide }] },
         ]}
-        pointerEvents={sheetOpen ? 'none' : 'box-none'}
+        pointerEvents={anySheetOpen ? 'none' : 'box-none'}
         onLayout={(e) => setTabH(e.nativeEvent.layout.height)}
       >
         <View style={styles.tabBar}>
@@ -483,9 +479,9 @@ function Screen() {
         onRestart={start}
         onQuit={stop}
       />
-      <MovePickerOverlay
-        visible={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+      <MovePickerSheet
+        open={pickerOpen}
+        onClose={closePicker}
         moves={allMoves}
         label={label}
         onPick={(id) => {
@@ -495,6 +491,7 @@ function Screen() {
         chips={<ComboChips moves={parsed.moves} label={label} onRemove={removeChip} />}
         hasPicked={parsed.moves.length > 0}
       />
+      <AddMoveSheet open={addMoveOpen} onClose={closeAddMove} onAdded={afterAddMove} />
       <SettingsSheet
         open={sheetOpen}
         onClose={closeSheet}

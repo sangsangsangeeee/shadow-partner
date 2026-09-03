@@ -3,20 +3,14 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react-
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
 import { resetMaterial } from '../ShadowCoach/hooks';
-import { goBackMock } from '../../commons/test-support/routerMock';
-import AddMove from '../AddMove';
-import { ACCENT } from '../../commons/constants';
+import { ACCENT, KIND_LABEL } from '../../commons/constants';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
 
-/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+/* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -69,7 +63,6 @@ const saved = <T,>(key: string): T | null => {
 beforeEach(() => {
   store().clear();
   resetMaterial();
-  goBackMock.mockClear();
 });
 
 describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
@@ -106,61 +99,88 @@ describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
   });
 });
 
-describe('shared — 동작 추가 화면과 본 화면이 자료를 나눠 쓴다', () => {
-  /*
-   * 라우터의 _layout은 화면을 하나씩 감싼다. 자료가 그 안에 살면 두 화면이 한 벌씩 갖게 되고,
-   * 추가 화면에서 넣은 동작이 본 화면에 영영 안 보인다. 실기기에서 그렇게 깨졌었다.
-   * 그래서 둘을 동시에 세워 둔다 — 실제로도 본 화면은 아래에 그대로 살아 있다.
-   */
-  it('추가 화면에서 넣은 동작이 본 화면의 호출어 목록에 바로 뜬다', async () => {
+describe('addmove — 동작 추가 시트', () => {
+  it('시트에서 넣은 동작이 뒤의 호출어 목록에 바로 뜨고, 시트는 닫힌다', async () => {
     render(
-      <>
-        <Layout>
-          <ShadowCoach />
-        </Layout>
-        <Layout>
-          <AddMove />
-        </Layout>
-      </>
+      <Layout>
+        <ShadowCoach />
+      </Layout>
     );
     await act(async () => {});
 
     fireEvent.press(screen.getByLabelText('호출어'));
     expect(screen.queryByText('엘보')).toBeNull();
 
+    fireEvent.press(screen.getByLabelText('동작 추가'));
+    await act(async () => {});
+
     fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
     fireEvent.press(screen.getByText('추가'));
     await act(async () => {});
 
-    // 저장소를 다시 읽지 않는다. 같은 자료를 보고 있어야만 이 줄이 통과한다.
+    // 같은 트리 안이라 저장소를 다시 읽지 않아도 목록에 보인다.
     expect(screen.getByText('엘보')).toBeTruthy();
-    // 등록을 마치면 왔던 길로 되돌아간다. navigate('/')면 화면이 한 장 더 쌓인다.
-    expect(goBackMock).toHaveBeenCalled();
+    // 넣고 나면 시트는 스스로 닫힌다 — 입력칸이 사라진 것으로 확인한다.
+    expect(screen.queryByPlaceholderText(/엘보/)).toBeNull();
   });
-});
 
-describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
-  it('그 동작을 쓰던 콤보에서 빠지고, 되돌리면 전부 살아난다', async () => {
-    /*
-     * 동작 추가는 별도 화면(/add-move)이라 본 화면과 같은 트리에 없다.
-     * 자료가 트리 밖에 살아서 이어진다 — 먼저 세워 등록하고 걷어낸다. 실제 전환도 이 순서다.
-     */
-    const adder = render(
-      <Layout>
-        <AddMove />
-      </Layout>
-    );
-    await act(async () => {});
-    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
-    fireEvent.press(screen.getByText('추가'));
-    await act(async () => {});
-    adder.unmount();
-
+  it('이미 있는 말이면 넣지 않고 시트에 그대로 남는다', async () => {
     render(
       <Layout>
         <ShadowCoach />
       </Layout>
     );
+    await act(async () => {});
+
+    fireEvent.press(screen.getByLabelText('호출어'));
+    fireEvent.press(screen.getByLabelText('동작 추가'));
+    await act(async () => {});
+
+    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '잽');
+    fireEvent.press(screen.getByText('추가'));
+    await act(async () => {});
+
+    expect(screen.getByText('이미 같은 말이 등록돼 있어.')).toBeTruthy();
+    expect(screen.getByPlaceholderText(/엘보/)).toBeTruthy();
+  });
+
+  it('넣은 동작의 분류가 지금 보고 있는 것과 다르면 그 분류로 옮겨간다', async () => {
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
+
+    // 호출어 탭은 '지르기'부터 보여준다. 발차기로 넣으면 그쪽으로 따라가야 한다.
+    fireEvent.press(screen.getByLabelText('호출어'));
+    fireEvent.press(screen.getByLabelText('동작 추가'));
+    await act(async () => {});
+
+    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '스핀킥');
+    fireEvent.press(screen.getByText(KIND_LABEL.kick));
+    fireEvent.press(screen.getByText('추가'));
+    await act(async () => {});
+
+    expect(screen.getByText('스핀킥')).toBeTruthy();
+  });
+});
+
+describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
+  it('그 동작을 쓰던 콤보에서 빠지고, 되돌리면 전부 살아난다', async () => {
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
+
+    // 동작 추가 시트로 '엘보'를 등록한다
+    fireEvent.press(screen.getByLabelText('호출어'));
+    fireEvent.press(screen.getByLabelText('동작 추가'));
+    await act(async () => {});
+    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
+    fireEvent.press(screen.getByText('추가'));
     await act(async () => {});
 
     // 그 동작으로 콤보 두 개를 만든다

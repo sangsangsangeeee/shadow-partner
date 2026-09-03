@@ -8,13 +8,9 @@ import { resetMaterial } from '../ShadowCoach/hooks';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
 
-/* 화면이 라우트로 갈라져서 렌더에 navigation이 필요하다. 전환은 대역이 받아만 둔다. */
+/* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 동작 추가 화면으로 갔다 오는 것을 기다리는 훅. 테스트에는 갔다 올 스택이 없다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@apps-in-toss/framework', () => require('../../commons/test-support/frameworkMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
