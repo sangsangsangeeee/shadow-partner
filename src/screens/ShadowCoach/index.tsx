@@ -296,7 +296,11 @@ function Screen() {
 
   const bottomSafe = insets.bottom;
 
-  const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe;
+  /*
+   * 키보드는 스크롤 뷰를 줄이지 않고 그 위에 겹친다. 그만큼을 더 비워야
+   * 마지막 줄의 편집칸이 키보드 위로 올라올 수 있다 — 안 비우면 스크롤이 거기서 끝난다.
+   */
+  const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe + kb;
 
   /* 탭바를 화면 밖까지 정확히 밀려면 자기 높이를 알아야 한다. 재서 쓴다. */
   const [tabH, setTabH] = useState(0);
