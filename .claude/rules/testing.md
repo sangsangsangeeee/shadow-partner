@@ -1,6 +1,6 @@
 # 무엇을 어느 층에서 확인하는가
 
-95개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
+97개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
 5초 제한에 걸린다. 회귀가 아니라 부하 문제다.
 
 ## 층
@@ -32,10 +32,13 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 `@granite-js/native/*`(svg · safe-area · async-storage · webview)와
 `@apps-in-toss/native-modules`도 각 테스트 파일 상단에서 mock한다.
 
-화면이 라우트로 갈라지면서 둘이 더 붙었다 —
-`@granite-js/react-native`는 `routerMock`(navigation), `@apps-in-toss/framework`는
-`frameworkMock`(갔다 돌아오는 것을 기다리는 훅). **둘 다 돌려주는 객체를 한 벌로 고정한다.**
-렌더마다 새로 만들면 그걸 의존성으로 쓰는 콜백의 신원이 깨져 memo 테스트가 엉뚱하게 실패한다.
+`@granite-js/react-native`는 `routerMock`으로 갈아끼운다. 화면 코드는 더 이상 `useNavigation`을
+부르지 않지만(하위 화면이 전부 시트다) `_layout`과 `createRoute`가 그 모듈에 닿는다.
+**돌려주는 객체는 한 벌로 고정한다** — 렌더마다 새로 만들면 그걸 의존성으로 쓰는 콜백의 신원이
+깨져 memo 테스트가 엉뚱하게 실패한다.
+
+시트는 같은 트리 안에 있어서 **화면 하나만 세우면 끝난다.** 라우트였을 때는 두 화면을
+나란히 렌더하거나 세웠다 걷어내야 했다. 그 우회로가 필요했던 자리를 되살리지 마라.
 
 ### 화면을 세우는 테스트는 자료를 되감는다
 

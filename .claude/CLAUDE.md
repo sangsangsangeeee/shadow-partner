@@ -52,20 +52,19 @@ src/
     utils/      파서 · 저장소 · 포맷 · 링 기하 · 이름 해석
     types.ts    도메인 모델
     test-support/tdsMock · routerMock · frameworkMock
-  screens/ShadowCoach/        `/` 라우트
-    index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층을 얹는다.
+  screens/ShadowCoach/        `/` 라우트. 유일한 라우트다.
+    index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층과 시트를 얹는다.
     MaterialContext.tsx  자료의 파생 조회를 화면 안에서 한 번만 계산한다
     hooks/      useMaterial(자료) · useTraining(라운드) · useCallouts(호출어)
     views/      TrainView · CombosView · WordsView
-    parts/      카드 · 줄 · 오버레이 · 시트
-  screens/AddMove/            `/add-move` 라우트
+    parts/      카드 · 줄 · 시트 셋(설정 · 동작 고르기 · 동작 추가) · 완료 겹침
 ```
 
-**`_layout`은 화면마다 따로 세워진다.** 라우터가 Screen 하나씩 감싸기 때문이다.
-그래서 거기 두는 것들은 여러 벌이 서도 괜찮아야 하고, 자료(`useMaterial`)는 트리 밖에 산다 —
-[state-and-hooks.md](rules/state-and-hooks.md).
+**하위 화면은 라우트가 아니라 바텀시트다.** 라우트는 `/` 하나뿐이다 —
+왜 그렇게 됐는지는 [architecture.md](rules/architecture.md)의 "하위 화면은 바텀시트다".
+새 라우트를 판다면 `pages/`와 `src/pages/` **두 파일이 짝**이고 `screenOptions: SCREEN`을 빼먹지 마라.
 
-새 라우트는 `pages/`와 `src/pages/` **두 파일이 짝**이다.
+자료(`useMaterial`)는 여전히 리액트 트리 밖에 산다 — [state-and-hooks.md](rules/state-and-hooks.md).
 
 ## 규칙
 
@@ -79,7 +78,9 @@ src/
 ## 지금 어디까지 왔나
 
 포팅과 구조 분리는 끝났다. `ShadowCoach/index.tsx`는 2104줄에서 556줄이 됐다.
-**겹침을 라우트로 내보내는 중이다** — 동작 추가가 나갔고(`/add-move`), 동작 고르기가 다음이다.
+**하위 화면은 전부 바텀시트로 모였다** — 라우트(`/add-move`)와 풀모달(동작 고르기)을 걷어냈고,
+전체 화면은 훈련 완료 하나만 남는다. 라우트를 판 이유였던 "토스 헤더를 덮는 문제"를
+시트가 그대로 푼다. **아직 기기에서 안 봤다.**
 TDS 채택은 **선별로 바뀌었다** — `Toast` `Slider` `Txt` `BottomSheet` `Button`이 들어갔고,
 `Switch`와 `Checkbox`는 액센트를 못 얹어 자체 구현으로 되돌렸다. `Stepper`는 교체 불가로 결론이 났다.
 남은 `TextField` `SegmentedControl`의 조사 결과는 [TODO.md](TODO.md) 1번에 있다.

@@ -3,48 +3,49 @@
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
 TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야 한 번만 본다.
 
-마지막 갱신: 동작 추가를 페이지로(`4d8db8d`). 브랜치 `feat/shadow-coach`, main 미병합.
+마지막 갱신: 하위 화면을 전부 바텀시트로. 브랜치 `feat/shadow-coach`, main 미병합.
 
 ---
 
-## 진행 중 — 겹침(Modal)을 페이지로. **기기 확인 대기**
+## 진행 중 — 하위 화면을 바텀시트로. **기기 확인 대기**
 
-풀모달이 토스 상태바까지 덮는 문제에서 시작했다. 토스는 헤더를 숨기는 API를 주지 않고
-[화면 전환 문서](https://developers-apps-in-toss.toss.im/documentation/react-native/screen-navigation)가
-라우팅을 권한다. 그래서 **동작 추가**를 `/add-move` 라우트로 내보냈다.
+풀모달이 토스 상태바까지 덮는 문제에서 시작했다. 처음엔 라우트로 풀었는데(`/add-move`),
+**TDS 바텀시트가 같은 문제를 값 없이 푼다**는 걸 알고 라우트를 도로 걷어냈다.
+`BottomSheetRoot`는 `Modal`이 아니라 앱 트리 안의 `position:absolute` 뷰라 토스 헤더를 안 덮는다.
 
-딸려 온 구조 변경 — **자료가 리액트 트리 밖으로 나갔다.**
-라우터의 `_layout`은 화면을 하나씩 감싼다(`useRouterControls`). 트리 안에 두면 두 화면이
-자료를 한 벌씩 갖고, 둘 다 저장소에 써서 늦게 쓴 쪽이 상대를 덮는다. 실기기에서 그렇게 깨졌다.
-[useMaterial.ts](../src/screens/ShadowCoach/hooks/useMaterial.ts)가 `useSyncExternalStore`로 바뀐 이유다.
+한 일:
 
-기기에서 확인된 것 (2026-08-23):
+- [x] 동작 추가: `/add-move` 라우트 → `AddMoveSheet`. 라우트 3파일과 `screens/AddMove/` 삭제
+- [x] 동작 고르기: 풀모달 `MovePickerOverlay` → `MovePickerSheet`
+- [x] 훈련 완료만 전체 화면으로 남김. `Overlay`에서 `OverlayFrame`·`avoidKeyboard`·`headExtra` 갈래 제거
+- [x] 고아가 된 `PillButton`(46줄)·`frameworkMock` 삭제
+- [x] 시트가 열리면 탭바·FAB를 걷어내도록 `anySheetOpen`으로 묶음 — 셋 중 하나만 봤으면 나머지에서 뚫린다
+- [x] 라우트 왕복이 사라져 "돌아온 뒤 목록 길이를 재서 뭐가 추가됐는지 추측하던" 우회로 제거
 
-- [x] `+` → 페이지 전환 · 토스 헤더 노출 · 뒤로가기로 나감
-- [x] 등록한 동작이 목록에 안 뜸 → 자료를 트리 밖으로
-- [x] 스택이 한 장 더 쌓임 → `navigate('/')`를 `goBack()`으로
-- [x] 키보드가 추가 버튼을 가림 → `KeyboardAvoidingView`를 걷어내고 `useKeyboardHeight`로
-- [x] 전환 중 자동 포커스로 버벅임 → `autoFocus` 제거
-- [x] 전환 중 흰 화면 번쩍임 → 라우트마다 `contentStyle` 검정 ([screenOptions.ts](../src/pages/screenOptions.ts))
+**라우트를 파며 고쳤던 것들은 이제 해당 없다** — 전환 중 흰 번쩍임, 자동 포커스 버벅임,
+`goBack` 스택 쌓임, 라우트별 `contentStyle`. 화면을 안 갈아타니 전환 자체가 없다.
+`screenOptions.ts`는 `/` 하나만 쓰지만 남겨 뒀다(새 라우트를 파면 다시 필요하다).
 
-아직 기기에서 안 본 것:
+기기에서 볼 것:
 
-- [ ] 위 네 고침이 실제로 먹는지 (특히 키보드는 iOS·안드로이드 둘 다)
-- [ ] 흰 번쩍임이 정말 사라졌는지. 남으면 다음 용의자는 토스 네이티브 헤더(`RNNavigationBar`) —
-      `granite.config.ts`의 `navigationBar.theme`로만 건드릴 수 있고 지금은 `light` 기본값이다
+- [ ] **세 시트가 토스 헤더를 안 덮는지.** 이게 이번 변경의 전제다. 깨지면 전부 되돌아간다
+- [ ] **동작 추가 시트에서 키보드가 CTA를 가리는지.** 라우트일 때는 `useKeyboardHeight`로 발을 올렸는데,
+      시트는 TDS가 `Keyboard.dismiss()`까지 들고 있어 자기가 처리할 것으로 본다. **확인 안 됐다**
+- [ ] 동작 고르기 시트 높이 — 동작이 20개 넘는 분류에서 시트가 화면을 다 먹지 않는지
+- [ ] 시트 위에 탭바·FAB가 안 뜨는지 (z를 안 거는 TDS 시트라 직접 걷어냈다)
+- [ ] 시트 닫고 다시 열었을 때 지난 입력이 안 남는지 (닫힘에서 되감지만 실물로 확인)
 
 남은 단계:
 
-- [ ] **동작 고르기(`MovePickerOverlay`)도 페이지로.** `draft`는 화면 상태로 남기기로 했으니
-      고른 동작은 파라미터로 돌려줘야 한다 — 추가 화면과 달리 결과를 들고 와야 하는 자리다.
 - [ ] 동작 고르기 안의 펀치·킥·방어·풋워크 **스와이프 전환** (`Gesture.Pan()` + `activeOffsetX`).
-      Overlay 구조가 흔들리는 중이라 미뤄 뒀다.
-- [ ] `Overlay` 제목과 `Segmented` 글자 1px 키우기. 다른 화면과 공유해서 같이 움직인다.
+      시트 안에서는 TDS가 드래그(끌어서 닫기)를 이미 쓰므로 **제스처 충돌을 먼저 확인해야 한다.**
+- [ ] `Segmented` 글자 1px 키우기. 여러 화면이 공유해서 같이 움직인다.
 
 **루트 `pages/`와 `src/pages/`는 통일할 수 없다.** 플러그인이 스캔 경로(`pages`)와
 출력 경로(`src/router.gen.ts`)를 하드코딩하고 옵션은 `watch` 하나뿐이다.
 새 라우트는 두 파일이 짝이다. 루트 쪽을 **빈 파일로** 먼저 만들면 플러그인이 템플릿을 채운다
 (내용이 있으면 `add`에서 그냥 빠져나간다). 이미 있는 파일은 다시 저장하면 `router.gen.ts`가 갱신된다.
+라우트를 지울 때는 두 파일과 `router.gen.ts`의 해당 줄을 같이 지운다.
 
 ---
 
@@ -95,12 +96,12 @@ TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
 제네릭 우려는 사실이었다. `Root`는 `value: string` 고정인데
 `BEAT_SEGMENTS`의 값은 **number**(0.4·0.5·0.65·0.85·1.05)다.
 
-- [ ] `AddMove`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
+- [ ] `AddMoveSheet`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
 - [ ] `name: string`이 필수 — 6곳 전부 새 prop
 - [ ] 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
 - [ ] `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
       동작 길이 5칸에서 줄이지 못한다
-- [ ] 6곳 교체 — AddMove(2) · SettingsSheet · MovePickerOverlay · WordRow · WordsView
+- [ ] 6곳 교체 — AddMoveSheet(2) · SettingsSheet · MovePickerSheet · WordRow · WordsView
 - [ ] [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄 삭제
 
 **색** — 인디케이터가 `colorPreference`만 보고 `dark → inverseGrey300`으로 하드코딩돼 있다.
@@ -139,8 +140,8 @@ prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스�
 
 ## 2. 전체 실기기 점검
 
-- [ ] 기획서 11장의 13개 시나리오를 기기에서 한 번씩 —
-      `nav` `fabshow` `fab` `chip` `dup` `reveal` `undo` `moveundo` `words` `beats` `picker` `gap` `done`
+- [ ] 기획서 11장의 14개 시나리오를 기기에서 한 번씩 —
+      `nav` `fabshow` `fab` `chip` `dup` `reveal` `undo` `moveundo` `addmove` `words` `beats` `picker` `gap` `done`
 - [ ] 3라운드 완주 한 번 (화면 꺼짐 방지 `useKeepAwake`가 실제로 먹는지)
 - [ ] 저장소 껐다 켜기 — 앱 종료 후 콤보·설정·호출어가 살아 있는지
 
@@ -159,13 +160,12 @@ TDS 교체가 끝난 상태로 한 번에. 여기를 통과하면 main에 병합
 **보류를 권한다. 이유 — 모양이 아직 움직이는 중이다.**
 
 원래 3곳 중복이었는데 TDS Toast가 하나를 다른 모양으로 바꿔서
-지금은 **동일한 표현이 2곳**뿐이다 ([index.tsx:404](../src/screens/ShadowCoach/index.tsx#L404), [422](../src/screens/ShadowCoach/index.tsx#L422)).
+지금은 **동일한 표현이 2곳**뿐이다 ([index.tsx:401](../src/screens/ShadowCoach/index.tsx#L401), [419](../src/screens/ShadowCoach/index.tsx#L419)).
 3곳일 때 묶었다면 추상을 만들고, TDS가 한 호출부를 어긋나게 만들고,
 그걸 억지로 늘리거나 도로 푸는 일을 했을 것이다.
-페이지 이식으로 셋째가 생겼다 — [Overlay.tsx](../src/commons/components/Overlay.tsx)의 발도
-`useKeyboardHeight`로 올라선다. 다만 그쪽은 `bottom: kb`(안전영역 없음)이고
-FAB는 `kb + 16` 대 `LAYER.fab + bottomSafe`라 아직 같은 식이 아니다.
-**변하는 중인 모양 위에 추상을 얹지 마라.** TDS 교체로 층이 더 줄면 그때 다시 센다.
+페이지 이식 때 셋째(`Overlay`의 발)가 잠깐 생겼다가 시트 전환으로 다시 사라졌다 —
+`useKeyboardHeight`를 쓰는 곳은 이제 이 둘뿐이다. **한 번 늘었다 줄어든 것 자체가 근거다.**
+변하는 중인 모양 위에 추상을 얹지 마라. TDS 교체로 층이 더 줄면 그때 다시 센다.
 
 ### 3-2. `TrainView` 쪼개기
 
