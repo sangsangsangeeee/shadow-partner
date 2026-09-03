@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@toss/tds-react-native';
 import { Field, Segmented, Typo } from '../../../commons/components';
+import { useSheetHeight } from '../../../commons/hooks';
 import { BEAT_OPTIONS, C, KINDS, KIND_LABEL } from '../../../commons/constants';
 import { norm } from '../../../commons/utils';
 import type { Kind } from '../../../commons/types';
@@ -31,6 +32,7 @@ export function AddMoveSheet({ open, onClose, onAdded }: Props) {
   const [kind, setKind] = useState<Kind>('punch');
   const [beat, setBeat] = useState(0.65);
   const [error, setError] = useState('');
+  const sheetHeight = useSheetHeight();
 
   /* 시트는 닫혀도 트리에 남는다. 다음에 열 때 지난 초안이 남아 있으면 안 된다. */
   useEffect(() => {
@@ -59,6 +61,10 @@ export function AddMoveSheet({ open, onClose, onAdded }: Props) {
   return (
     <BottomSheet.Root
       open={open}
+      // 오류 한 줄이 붙었다 빠질 때마다 시트가 들썩이지 않게 키를 고정한다.
+      style={{ height: sheetHeight }}
+      // 키보드가 떠 있는 동안에도 분류·길이가 한 번에 눌려야 한다. 없으면 첫 탭이 키보드를 닫는 데만 쓰인다.
+      wrapperProps={{ style: styles.scroll, keyboardShouldPersistTaps: 'handled' as const }}
       header={<BottomSheet.Header>동작 추가</BottomSheet.Header>}
       onClose={onClose}
       onDimmerClick={onClose}
@@ -101,6 +107,8 @@ export function AddMoveSheet({ open, onClose, onAdded }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // 시트 키가 고정이라 본문이 남은 자리를 다 먹어야 한다. 안 주면 내용이 시트 밖으로 넘친다.
+  scroll: { flex: 1 },
   body: { paddingHorizontal: 20, paddingBottom: 8 },
   fieldGap: { marginTop: 24 },
   beatRow: { marginBottom: 12 },
