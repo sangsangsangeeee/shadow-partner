@@ -1,4 +1,5 @@
 import React from 'react';
+import { Keyboard } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
@@ -258,6 +259,38 @@ describe('words — 호출어 한 줄 편집', () => {
     fireEvent.press(screen.getByText('킥'));
     await waitFor(() => expect(screen.queryByText('잽')).toBeNull());
     expect(screen.getByText('로우킥')).toBeTruthy();
+  });
+
+  /*
+   * FAB이 키보드 위에 서면 편집칸의 들어보기·확인 단추를 정확히 덮는다.
+   * 실기기에서 그렇게 막혔고, 자리 계산이 아니라 "타자 중에는 걷어낸다"는 규칙이 그걸 푼다.
+   * Keyboard에는 emit이 없어서 등록된 청취자를 붙잡아 직접 부른다(화면과 시트 셋이 함께 듣는다).
+   */
+  it('타자 중에는 동작 추가 FAB을 걷어낸다', async () => {
+    const heard: Record<string, ((e: unknown) => void)[]> = {};
+    const spy = jest.spyOn(Keyboard, 'addListener').mockImplementation(((evt: string, cb: (e: unknown) => void) => {
+      (heard[evt] ??= []).push(cb);
+      return { remove: () => {} };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any);
+
+    try {
+      await setup();
+      fireEvent.press(screen.getByLabelText('호출어'));
+      expect(screen.getByLabelText('동작 추가')).toBeTruthy();
+
+      act(() => {
+        heard.keyboardWillShow?.forEach((cb) => cb({ endCoordinates: { height: 336 } }));
+      });
+      await waitFor(() => expect(screen.queryByLabelText('동작 추가')).toBeNull());
+
+      act(() => {
+        heard.keyboardWillHide?.forEach((cb) => cb({}));
+      });
+      await waitFor(() => expect(screen.getByLabelText('동작 추가')).toBeTruthy());
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('번호로 일괄 변경하면 호출어가 번호가 된다', async () => {

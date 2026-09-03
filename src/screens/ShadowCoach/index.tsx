@@ -419,8 +419,13 @@ function Screen() {
         </View>
       ) : null}
 
-      {tab === 'words' && !anySheetOpen ? (
-        <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
+      {/*
+        타자 중에는 걷어낸다. 키보드 위 자리는 편집칸의 들어보기·확인 단추 자리이고,
+        FAB이 거기 서면 그 둘을 덮는다. 이름을 적는 동안 동작 추가를 누를 일도 없다.
+        콤보 탭의 저장 FAB은 반대다 — 타자 중에 눌러야 하므로 키보드 위로 따라 올라간다.
+      */}
+      {tab === 'words' && !anySheetOpen && kb === 0 ? (
+        <View style={[styles.fabLayer, { bottom: LAYER.fab + bottomSafe }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabEnd]} pointerEvents="box-none">
             <Tap
               onPress={openAddMove}
