@@ -1,10 +1,11 @@
 import React from 'react';
-import { Keyboard } from 'react-native';
+import { Keyboard, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
 import { resetMaterial } from '../ShadowCoach/hooks';
 import { fireSwipe, resetGestureMock, swipeAreaCount } from '../../commons/test-support/gestureMock';
+import { CHIP_TRAY_H, TOAST_MS } from '../../commons/constants';
 
 /** SwipeArea가 넘김으로 인정하는 거리. 여기가 바뀌면 이 테스트도 같이 움직여야 한다. */
 const COMMIT = 60;
@@ -228,7 +229,7 @@ describe('undo — 삭제와 되돌리기', () => {
   });
 
   // 되돌릴 기회의 시계는 토스트가 들고 있다. 여기서 끊기면 되돌리기가 영영 안 사라진다.
-  it('6초가 지나면 스스로 접는다', async () => {
+  it('정해진 시간이 지나면 스스로 접는다', async () => {
     jest.useFakeTimers();
     await setup();
     fireEvent.press(screen.getByLabelText('콤보'));
@@ -236,8 +237,14 @@ describe('undo — 삭제와 되돌리기', () => {
     fireEvent.press(screen.getByText('삭제'));
     await waitFor(() => expect(screen.getByText('되돌리기')).toBeTruthy());
 
+    // 시간이 차기 전에 걷히면 되돌릴 기회를 뺏는 것이다. 양쪽을 다 본다.
     await act(async () => {
-      jest.advanceTimersByTime(6100);
+      jest.advanceTimersByTime(TOAST_MS - 100);
+    });
+    expect(screen.getByText('되돌리기')).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(200);
     });
     expect(screen.queryByText('되돌리기')).toBeNull();
 
@@ -424,6 +431,41 @@ describe('picker — 탭으로 콤보 쌓기', () => {
     act(() => fireSwipe(-COMMIT));
     await waitFor(() => expect(screen.getByText('로우킥')).toBeTruthy());
     expect(screen.queryByText('바디')).toBeNull();
+  });
+
+  /*
+   * 칩 상자가 내용에 따라 자라면 아래 격자가 통째로 밀린다.
+   * 누르려던 자리가 손 밑에서 사라지는 것이라, 키는 칩 개수와 무관해야 한다.
+   */
+  it('칩이 쌓여도 칩 상자 높이가 그대로다', async () => {
+    const { UNSAFE_getAllByType } = await setup();
+    const { ScrollView } = jest.requireActual('react-native');
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.press(screen.getByText('목록에서 고르기'));
+    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
+
+    /* 콤보 탭 본문도 스크롤이라 순서로 짚지 않는다. 키가 걸린 층이 칩 상자다. */
+    const trayHeight = () => {
+      const heights = UNSAFE_getAllByType(ScrollView)
+        .map((n: { props: { style?: StyleProp<ViewStyle> } }) => StyleSheet.flatten(n.props.style)?.height)
+        .filter((h): h is number => typeof h === 'number');
+      expect(heights).toHaveLength(1);
+      return heights[0]!;
+    };
+
+    const empty = trayHeight();
+    expect(empty).toBe(CHIP_TRAY_H);
+
+    fireEvent.press(screen.getByText('바디'));
+    await waitFor(() => expect(screen.getAllByLabelText('바디 지우기').length).toBeGreaterThan(0));
+    expect(trayHeight()).toBe(empty);
+
+    // 한 줄을 넘길 만큼 쌓아도 그대로다. 넘치면 상자 안에서 스크롤된다.
+    for (const name of ['잽', '스트레이트', '레프트훅', '라이트훅', '레프트어퍼']) {
+      fireEvent.press(screen.getByText(name));
+    }
+    await waitFor(() => expect(screen.getAllByLabelText('레프트어퍼 지우기').length).toBeGreaterThan(0));
+    expect(trayHeight()).toBe(empty);
   });
 
   it('닫았다 다시 열면 첫 분류부터 보여준다', async () => {

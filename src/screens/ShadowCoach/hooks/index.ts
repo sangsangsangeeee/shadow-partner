@@ -3,7 +3,6 @@ export {
   useMaterial,
   materialReducer,
   resetMaterial,
-  UNDO_MS,
   type MaterialState,
   type MaterialAction,
 } from './useMaterial';

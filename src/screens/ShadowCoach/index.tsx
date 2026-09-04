@@ -6,6 +6,7 @@ import {
   C,
   LAYER,
   MAXW,
+  TOAST_MS,
   TOUCH,
 } from '../../commons/constants';
 import { parseCombo, resolveName } from '../../commons/utils';
@@ -26,7 +27,7 @@ import {
   useLatestRef,
   useTimerBank,
 } from '../../commons/hooks';
-import { useCallouts, useTraining, UNDO_MS } from './hooks';
+import { useCallouts, useTraining } from './hooks';
 import { useMaterialContext } from './MaterialContext';
 import { AddMoveSheet, ComboChips, DoneOverlay, MovePickerSheet, SettingsSheet } from './parts';
 import { CombosView, TrainView, WordsView } from './views';
@@ -448,7 +449,7 @@ function Screen() {
       <Toast
         open={undo != null && tab !== 'train'}
         text={undo?.text ?? ''}
-        duration={UNDO_MS}
+        duration={TOAST_MS}
         bottomOffset={kb > 0 ? kb + 80 - bottomSafe : anyFabShown ? LAYER.toastWithFab : LAYER.toastAlone}
         onClose={dismissUndo}
         button={<Toast.Button onPress={restoreUndo}>되돌리기</Toast.Button>}

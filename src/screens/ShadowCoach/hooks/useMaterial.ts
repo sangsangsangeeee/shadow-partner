@@ -3,10 +3,6 @@ import { BASE_MOVES, DEFAULTS, STORAGE_KEYS } from '../../../commons/constants';
 import { loadJSON, moveIndex, resolveName, saveJSON, uid } from '../../../commons/utils';
 import type { Beats, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
 
-/** 되돌리기 토스트가 떠 있는 시간(ms). */
-/** 되돌릴 기회를 주는 시간. 토스트가 이 시계를 들고 있다가 스스로 닫는다. */
-export const UNDO_MS = 6000;
-
 export type MaterialState = Material & {
   /** 저장소를 다 읽었는가. 읽기 전에 쓰면 빈 값으로 덮어쓴다. */
   loaded: boolean;

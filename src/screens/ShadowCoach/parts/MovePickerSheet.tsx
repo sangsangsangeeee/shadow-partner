@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@toss/tds-react-native';
 import { Segmented, SwipeArea, Tap, Typo } from '../../../commons/components';
-import { C, COMBO_SIZE, KINDS, KIND_LABEL } from '../../../commons/constants';
+import { C, CHIP_TRAY_H, COMBO_SIZE, KINDS, KIND_LABEL } from '../../../commons/constants';
 import { useAdjacentStep, useSheetHeight } from '../../../commons/hooks';
 import type { Kind, Move } from '../../../commons/types';
 
@@ -57,14 +57,22 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
       <View style={styles.body}>
         <Segmented options={KIND_OPTIONS} value={kind} onChange={setKind} />
 
-        {/* 쌓인 칩은 목록 위에 둔다. CTA 옆에 두면 시트가 늘었다 줄었다 한다. */}
-        <View style={styles.tray}>
+        {/*
+          쌓인 칩은 목록 위에 둔다. CTA 옆에 두면 시트가 늘었다 줄었다 한다.
+          키는 두 줄분으로 고정한다 — 칩이 늘 때마다 상자가 자라면 아래 격자가 밀려서
+          방금 누르려던 자리가 손 밑에서 사라진다. 넘치면 상자 안에서 스크롤된다.
+        */}
+        <ScrollView
+          style={styles.tray}
+          contentContainerStyle={styles.trayInner}
+          keyboardShouldPersistTaps="handled"
+        >
           {hasPicked ? (
             chips
           ) : (
             <Typo level="caption" color={C.z600} style={styles.noteText}>동작을 눌러서 순서대로 쌓아봐.</Typo>
           )}
-        </View>
+        </ScrollView>
 
         {/* 격자만 감싼다. 위 칩 트레이에는 지우는 터치가 있어 얽히면 안 된다. */}
         <SwipeArea onRight={swipe.prev} onLeft={swipe.next} style={styles.grid}>
@@ -97,15 +105,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tray: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+    // flexGrow를 막지 않으면 ScrollView가 남은 자리를 다 먹어 격자를 밀어낸다.
+    height: CHIP_TRAY_H,
+    flexGrow: 0,
     marginTop: 16,
     marginBottom: 16,
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.line,
     borderRadius: 12,
+  },
+  trayInner: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
