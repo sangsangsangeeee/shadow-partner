@@ -32,6 +32,17 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 `@granite-js/native/*`(svg · safe-area · async-storage · webview)와
 `@apps-in-toss/native-modules`도 각 테스트 파일 상단에서 mock한다.
 
+`@granite-js/native/react-native-gesture-handler`는 **빈 객체로 들어온다.** 번들러가 실제 패키지로
+치환하는 껍데기라 dist에 런타임 JS가 없다(`Gesture`가 undefined). `gestureMock`으로 갈아끼운다.
+
+**그 대역은 손가락 판정을 흉내내지 않는다.** 얼마나 밀어야 인정하는지는 실물만 알고,
+대역이 그걸 다시 정하면 테스트가 대역의 규칙을 확인하게 된다. 대신 `onEnd`를 붙잡아 두고
+`fireSwipe(dx)`로 직접 부른다 — 확인 대상은 "이만큼 갔을 때 어느 쪽으로 넘기는가"다.
+**제스처 인식기 자체는 기기에서만 확인된다.**
+
+등록된 영역은 트리 밖에 쌓이므로 `beforeEach`에서 `resetGestureMock()`을 부른다.
+`resetMaterial()`과 같은 이유다.
+
 `@granite-js/react-native`는 `routerMock`으로 갈아끼운다. 화면 코드는 더 이상 `useNavigation`을
 부르지 않지만(하위 화면이 전부 시트다) `_layout`과 `createRoute`가 그 모듈에 닿는다.
 **돌려주는 객체는 한 벌로 고정한다** — 렌더마다 새로 만들면 그걸 의존성으로 쓰는 콜백의 신원이
@@ -77,3 +88,7 @@ TDS mock과 AsyncStorage mock이 필요하다.
 
 숨은 WebView + TTS 경로(`VoiceEngine`)는 **모든 테스트에서 mock이다.**
 목소리·속도·목소리 목록에 손대는 변경은 기기에서 봐야 한다.
+
+**스와이프의 인식 자체도 그렇다.** 넘어간 뒤에 무엇이 일어나는지는 테스트가 잡지만,
+가로 20px에서 활성화되고 세로 12px에 양보하는 게 손에 어떻게 느껴지는지는 기기에서만 안다.
+`SwipeArea`의 임계값 셋을 건드리면 테스트가 아니라 기기를 봐야 한다.

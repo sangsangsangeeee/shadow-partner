@@ -1,3 +1,4 @@
+export { useAdjacentStep } from './useAdjacentStep';
 export { useExpiringState, type Expiring } from './useExpiringState';
 export { useKeepAwake } from './useKeepAwake';
 export { useKeyboardHeight } from './useKeyboardHeight';

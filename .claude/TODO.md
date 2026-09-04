@@ -37,9 +37,30 @@ TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야
 
 남은 단계:
 
-- [ ] 동작 고르기 안의 펀치·킥·방어·풋워크 **스와이프 전환** (`Gesture.Pan()` + `activeOffsetX`).
-      시트 안에서는 TDS가 드래그(끌어서 닫기)를 이미 쓰므로 **제스처 충돌을 먼저 확인해야 한다.**
+- [x] 분류 **스와이프 전환** — 호출어 탭과 동작 고르기 시트 둘 다. **기기 확인 대기**
 - [ ] `Segmented` 글자 1px 키우기. 여러 화면이 공유해서 같이 움직인다.
+
+### 스와이프에서 확인된 것 — 다시 조사하지 마라
+
+**제스처 충돌 걱정은 근거가 없었다.** TDS 시트의 끌어서 닫기는
+`Gesture.Pan().activateAfterLongPress(200)`이라(`bottom-sheet/DragAnimation.js`)
+즉시 시작하는 스와이프와 시간축에서 갈린다. 붙잡고 끄는 손짓과 쓸어 넘기는 손짓은 다른 동작이다.
+
+`react-native-gesture-handler`는 **새로 깔 필요가 없다.** `@granite-js/native/react-native-gesture-handler`로
+공식 재수출되고 두 RN 버전에 다 있다. `GestureHandlerRootView`도 `TDSProvider`가 안에서
+`flex:1`로 이미 감싼다 — 우리가 루트에 얹을 게 없다.
+
+**TDS `Tabs`(extensions/tab-view)는 쓰지 마라.** 최상위 export라 후보로 보이지만 둘 다 막힌다:
+`TabItem`·`Indicator`가 `useAdaptive()`의 `grey800`/`grey600` 하드코딩이라 액센트를 못 얹고
+(1-2의 `SegmentedControl`과 같은 병), `TabsViewList`는 네이티브 `PagerView`에 `flex:1`이라
+시트 안에서 높이를 못 잡는다. 그래서 `Segmented`를 그대로 두고 스와이프만 얹었다.
+
+기기에서 볼 것:
+
+- [ ] **호출어 탭에서 세로 스크롤이 안 죽는지.** `failOffsetY(12)`로 양보하게 했지만 실물 감각은 다르다
+- [ ] **시트 격자에서 스와이프와 끌어서 닫기가 안 싸우는지.** 롱프레스 200ms로 갈린다는 게 코드 근거다
+- [ ] **넘김 임계 60px이 적당한지.** 너무 예민하면 동작을 누르려다 분류가 바뀐다
+- [ ] 끝 분류에서 더 쓸었을 때 아무 일도 안 일어나는 게 답답하지 않은지 (감기지 않게 했다)
 
 **루트 `pages/`와 `src/pages/`는 통일할 수 없다.** 플러그인이 스캔 경로(`pages`)와
 출력 경로(`src/router.gen.ts`)를 하드코딩하고 옵션은 `watch` 하나뿐이다.

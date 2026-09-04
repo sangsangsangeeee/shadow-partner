@@ -12,6 +12,10 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
 
+/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
+
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
   return { __esModule: true, default: View, Svg: View, Circle: View, Path: View, Rect: View };

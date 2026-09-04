@@ -51,7 +51,7 @@ src/
     hooks/      범용 훅
     utils/      파서 · 저장소 · 포맷 · 링 기하 · 이름 해석
     types.ts    도메인 모델
-    test-support/tdsMock · routerMock · frameworkMock
+    test-support/tdsMock · routerMock · gestureMock
   screens/ShadowCoach/        `/` 라우트. 유일한 라우트다.
     index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층과 시트를 얹는다.
     MaterialContext.tsx  자료의 파생 조회를 화면 안에서 한 번만 계산한다
@@ -84,6 +84,7 @@ src/
 TDS 채택은 **선별로 바뀌었다** — `Toast` `Slider` `Txt` `BottomSheet` `Button`이 들어갔고,
 `Switch`와 `Checkbox`는 액센트를 못 얹어 자체 구현으로 되돌렸다. `Stepper`는 교체 불가로 결론이 났다.
 남은 `TextField` `SegmentedControl`의 조사 결과는 [TODO.md](TODO.md) 1번에 있다.
+분류는 **쓸어서도 넘어간다** — 호출어 탭과 동작 고르기 시트 둘 다. 역시 기기에서 안 봤다.
 
 **남은 일은 [TODO.md](TODO.md)에 우선순위대로 있다. 새 작업을 시작하기 전에 거기를 먼저 읽어라.**
 지금 맨 위는 실기기 점검이고, 그게 비어야 다음 TDS 교체를 시작할 수 있다.

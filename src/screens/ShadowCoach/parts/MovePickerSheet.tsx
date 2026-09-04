@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@toss/tds-react-native';
-import { Segmented, Tap, Typo } from '../../../commons/components';
+import { Segmented, SwipeArea, Tap, Typo } from '../../../commons/components';
 import { C, COMBO_SIZE, KINDS, KIND_LABEL } from '../../../commons/constants';
+import { useAdjacentStep } from '../../../commons/hooks';
 import type { Kind, Move } from '../../../commons/types';
 
 type Props = {
@@ -29,6 +30,7 @@ const KIND_OPTIONS = KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }));
 export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, hasPicked }: Props) {
   const [kind, setKind] = useState<Kind>('punch');
   const list = moves.filter((m) => m.kind === kind);
+  const swipe = useAdjacentStep(KINDS, kind, setKind);
 
   /* 시트는 닫혀도 트리에 남는다. 다음에 열 때는 첫 분류부터 보여준다. */
   useEffect(() => {
@@ -60,13 +62,14 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
           )}
         </View>
 
-        <View style={styles.grid}>
+        {/* 격자만 감싼다. 위 칩 트레이에는 지우는 터치가 있어 얽히면 안 된다. */}
+        <SwipeArea onRight={swipe.prev} onLeft={swipe.next} style={styles.grid}>
           {list.map((m) => (
             <Tap key={m.id} onPress={() => onPick(m.id)} style={styles.cell}>
               <Typo level="small" color={C.z200} style={styles.cellText}>{label(m.id)}</Typo>
             </Tap>
           ))}
-        </View>
+        </SwipeArea>
       </View>
     </BottomSheet.Root>
   );

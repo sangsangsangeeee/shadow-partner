@@ -42,6 +42,11 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 
 **FAB는 TDS `Button`으로 바꾸지 마라.** 알약·원형 커스텀 모양이라 맞지 않는다.
 
+**분류 스와이프를 TDS `Tabs`로 바꾸지 마라.** `extensions/tab-view`에 있고 최상위 export라
+스와이프 탭이 공짜로 되는 것처럼 보이지만 둘 다 막힌다 — `TabItem`·`Indicator`가
+`useAdaptive()`의 `grey800`/`grey600` 하드코딩이고, `TabsViewList`는 네이티브 `PagerView`에
+`flex:1`이라 시트 안에서 높이를 못 잡는다. `Segmented` + `SwipeArea`로 간다.
+
 **`Switch`와 `Checkbox`는 TDS에서 되돌렸다.** 둘 다 `grey200 → blue500` 하드코딩이라 액센트를 못 얹는다.
 `Switch`는 `style`이 바깥 `Pressable`에만 걸려 트랙에 닿지도 않는다.
 `Switch`는 RN 내장으로, `Checkbox`는 24px 네모 + `Check` 아이콘으로 돌아갔다.

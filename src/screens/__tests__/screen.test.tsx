@@ -3,6 +3,10 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
 import { resetMaterial } from '../ShadowCoach/hooks';
+import { fireSwipe, resetGestureMock, swipeAreaCount } from '../../commons/test-support/gestureMock';
+
+/** SwipeArea가 넘김으로 인정하는 거리. 여기가 바뀌면 이 테스트도 같이 움직여야 한다. */
+const COMMIT = 60;
 
 /*
  * @granite-js/native/* 는 실제 패키지를 그대로 재수출하는 얇은 껍데기다.
@@ -15,6 +19,10 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 /* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
+
+/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -68,6 +76,8 @@ beforeEach(() => {
   const store = (globalThis as Record<string, unknown>).__sbcStore as Map<string, string> | undefined;
   store?.clear();
   resetMaterial();
+  // 제스처 대역도 트리 밖에 산다. 안 비우면 앞 테스트의 스와이프 영역이 남는다.
+  resetGestureMock();
 });
 
 const setup = async () => {
@@ -260,6 +270,38 @@ describe('words — 호출어 한 줄 편집', () => {
     expect(screen.getByText('로우킥')).toBeTruthy();
   });
 
+  it('쓸어 넘기면 옆 분류로 간다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('호출어'));
+    expect(screen.getByText('잽')).toBeTruthy();
+
+    // 왼쪽으로 쓸면 오른쪽 것(펀치 → 킥)
+    act(() => fireSwipe(-COMMIT));
+    await waitFor(() => expect(screen.queryByText('잽')).toBeNull());
+    expect(screen.getByText('로우킥')).toBeTruthy();
+
+    // 오른쪽으로 쓸면 되돌아온다
+    act(() => fireSwipe(COMMIT));
+    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
+  });
+
+  it('끝에서는 감기지 않는다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('호출어'));
+
+    // 첫 분류에서 오른쪽으로 쓸어도 마지막(풋워크)으로 건너뛰지 않는다
+    act(() => fireSwipe(COMMIT));
+    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
+  });
+
+  it('살짝 스친 것으로는 분류가 안 바뀐다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('호출어'));
+
+    act(() => fireSwipe(-(COMMIT - 1)));
+    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
+  });
+
   it('번호로 일괄 변경하면 호출어가 번호가 된다', async () => {
     await setup();
     fireEvent.press(screen.getByLabelText('호출어'));
@@ -287,6 +329,38 @@ describe('picker — 탭으로 콤보 쌓기', () => {
     await waitFor(() => expect(screen.getAllByLabelText('하이킥 지우기').length).toBeGreaterThan(0));
     // 앞서 쌓은 것도 남아 있다
     expect(screen.getAllByLabelText('바디 지우기').length).toBeGreaterThan(0);
+  });
+
+  it('격자를 쓸어 넘기면 옆 분류로 간다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.press(screen.getByText('목록에서 고르기'));
+    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
+
+    // 콤보 탭에는 스와이프 영역이 없다. 시트가 열려야 처음 생긴다.
+    expect(swipeAreaCount()).toBe(1);
+
+    act(() => fireSwipe(-COMMIT));
+    await waitFor(() => expect(screen.getByText('로우킥')).toBeTruthy());
+    expect(screen.queryByText('바디')).toBeNull();
+  });
+
+  it('닫았다 다시 열면 첫 분류부터 보여준다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.press(screen.getByText('목록에서 고르기'));
+    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
+
+    act(() => fireSwipe(-COMMIT));
+    await waitFor(() => expect(screen.getByText('로우킥')).toBeTruthy());
+
+    // 완료는 하나라도 쌓아야 눌린다. 시트를 닫는 게 목적이라 아무거나 하나 고른다.
+    fireEvent.press(screen.getByText('로우킥'));
+    fireEvent.press(screen.getByText('완료'));
+    await waitFor(() => expect(screen.queryByText('동작 고르기')).toBeNull());
+    fireEvent.press(screen.getByText('목록에서 고르기'));
+
+    await waitFor(() => expect(screen.getByText('바디')).toBeTruthy());
   });
 });
 
