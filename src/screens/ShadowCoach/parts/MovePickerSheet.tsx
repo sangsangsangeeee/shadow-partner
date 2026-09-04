@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { BottomSheet } from '@toss/tds-react-native';
 import { Segmented, SwipeArea, Tap, Typo } from '../../../commons/components';
 import { C, COMBO_SIZE, KINDS, KIND_LABEL } from '../../../commons/constants';
-import { useAdjacentStep } from '../../../commons/hooks';
+import { useAdjacentStep, useSheetHeight } from '../../../commons/hooks';
 import type { Kind, Move } from '../../../commons/types';
 
 type Props = {
@@ -31,6 +31,7 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
   const [kind, setKind] = useState<Kind>('punch');
   const list = moves.filter((m) => m.kind === kind);
   const swipe = useAdjacentStep(KINDS, kind, setKind);
+  const sheetHeight = useSheetHeight();
 
   /* 시트는 닫혀도 트리에 남는다. 다음에 열 때는 첫 분류부터 보여준다. */
   useEffect(() => {
@@ -40,6 +41,9 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
   return (
     <BottomSheet.Root
       open={open}
+      // 분류를 옮기면 목록 길이가 달라진다. 시트가 그때마다 늘었다 줄었다 하면 손이 목표를 잃는다.
+      style={{ height: sheetHeight }}
+      wrapperProps={{ style: styles.scroll }}
       header={<BottomSheet.Header>동작 고르기</BottomSheet.Header>}
       onClose={onClose}
       onDimmerClick={onClose}
@@ -76,6 +80,8 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
 }
 
 const styles = StyleSheet.create({
+  // 시트 키가 고정이라 본문이 남은 자리를 다 먹어야 한다. 안 주면 내용이 시트 밖으로 넘친다.
+  scroll: { flex: 1 },
   body: { paddingHorizontal: 20, paddingBottom: 8 },
   cellText: { fontSize: COMBO_SIZE.item },
   noteText: { fontSize: COMBO_SIZE.note },

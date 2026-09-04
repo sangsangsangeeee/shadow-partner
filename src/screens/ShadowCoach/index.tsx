@@ -296,7 +296,11 @@ function Screen() {
 
   const bottomSafe = insets.bottom;
 
-  const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe;
+  /*
+   * 키보드는 스크롤 뷰를 줄이지 않고 그 위에 겹친다. 그만큼을 더 비워야
+   * 마지막 줄의 편집칸이 키보드 위로 올라올 수 있다 — 안 비우면 스크롤이 거기서 끝난다.
+   */
+  const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe + kb;
 
   /* 탭바를 화면 밖까지 정확히 밀려면 자기 높이를 알아야 한다. 재서 쓴다. */
   const [tabH, setTabH] = useState(0);
@@ -415,8 +419,13 @@ function Screen() {
         </View>
       ) : null}
 
-      {tab === 'words' && !anySheetOpen ? (
-        <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
+      {/*
+        타자 중에는 걷어낸다. 키보드 위 자리는 편집칸의 들어보기·확인 단추 자리이고,
+        FAB이 거기 서면 그 둘을 덮는다. 이름을 적는 동안 동작 추가를 누를 일도 없다.
+        콤보 탭의 저장 FAB은 반대다 — 타자 중에 눌러야 하므로 키보드 위로 따라 올라간다.
+      */}
+      {tab === 'words' && !anySheetOpen && kb === 0 ? (
+        <View style={[styles.fabLayer, { bottom: LAYER.fab + bottomSafe }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabEnd]} pointerEvents="box-none">
             <Tap
               onPress={openAddMove}

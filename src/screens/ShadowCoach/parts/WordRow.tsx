@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { Check, Pencil, RotateCcw, Segmented, Tap, Trash2, Typo, Volume2 } from '../../../commons/components';
 import { ACCENT, BEAT_OPTIONS, C, TOUCH } from '../../../commons/constants';
 import { beatName } from '../../../commons/utils';
@@ -22,6 +22,8 @@ type Props = {
   resettable: boolean;
   onOpen: (id: string) => void;
   onClose: () => void;
+  /** 목록 안에서의 자리. 펼칠 때 그 줄로 굴려 가는 데 쓴다. */
+  onMeasure: (id: string, y: number) => void;
   onChangeName: (id: string, value: string) => void;
   onChangeBeat: (id: string, beat: number) => void;
   onReset: (id: string) => void;
@@ -45,28 +47,34 @@ function WordRowView({
   resettable,
   onOpen,
   onClose,
+  onMeasure,
   onChangeName,
   onChangeBeat,
   onReset,
   onDelete,
   onPreview,
 }: Props) {
+  const measure = (e: LayoutChangeEvent) => onMeasure(move.id, e.nativeEvent.layout.y);
+
   if (!open) {
     return (
-      <Tap onPress={() => onOpen(move.id)} style={styles.row}>
-        <Typo level="item" color={C.white} numberOfLines={1}>
-          {name}
-        </Typo>
-        {/* 접힌 줄에도 현재 길이를 표시한다 */}
-        <Typo level="caption" color={C.z700}>{beatName(beat)}</Typo>
-        {custom ? <Typo level="caption" color={C.z700}>직접 추가</Typo> : null}
-        <Pencil size={16} color={C.z700} />
-      </Tap>
+      /* Tap은 onLayout을 받지 않는다. 자리를 재려면 한 겹이 필요하다 — 픽셀은 그대로다. */
+      <View onLayout={measure}>
+        <Tap onPress={() => onOpen(move.id)} style={styles.row}>
+          <Typo level="item" color={C.white} numberOfLines={1}>
+            {name}
+          </Typo>
+          {/* 접힌 줄에도 현재 길이를 표시한다 */}
+          <Typo level="caption" color={C.z700}>{beatName(beat)}</Typo>
+          {custom ? <Typo level="caption" color={C.z700}>직접 추가</Typo> : null}
+          <Pencil size={16} color={C.z700} />
+        </Tap>
+      </View>
     );
   }
 
   return (
-    <View style={styles.edit}>
+    <View onLayout={measure} style={styles.edit}>
       <View style={styles.editTop}>
         <TextInput
           autoFocus

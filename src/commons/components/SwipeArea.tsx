@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { Gesture, GestureDetector } from '@granite-js/native/react-native-gesture-handler';
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   onLeft: () => void;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** 감싼 자리를 재는 곳이 있다. 이 층이 View 하나를 세우므로 그 자리를 그대로 물려준다. */
+  onLayout?: (e: LayoutChangeEvent) => void;
 };
 
 /** 이만큼 가로로 가야 스와이프로 인정한다. 세로 스크롤이 먼저 가져가라고 넉넉히 잡았다. */
@@ -30,7 +32,7 @@ const COMMIT_X = 60;
  *
  * `runOnJS`가 필요하다 — reanimated 워크릿이 아니라 평범한 JS 콜백을 부른다.
  */
-export function SwipeArea({ onRight, onLeft, children, style }: Props) {
+export function SwipeArea({ onRight, onLeft, children, style, onLayout }: Props) {
   const gesture = useMemo(
     () =>
       Gesture.Pan()
@@ -46,7 +48,7 @@ export function SwipeArea({ onRight, onLeft, children, style }: Props) {
 
   return (
     <GestureDetector gesture={gesture}>
-      <View style={style}>{children}</View>
+      <View style={style} onLayout={onLayout}>{children}</View>
     </GestureDetector>
   );
 }

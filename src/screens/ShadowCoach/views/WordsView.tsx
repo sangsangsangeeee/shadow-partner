@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { RotateCcw, Segmented, SwipeArea, Tap, Typo } from '../../../commons/components';
 import { BASE_MOVES, C, KINDS, KIND_LABEL, MAXW } from '../../../commons/constants';
@@ -7,6 +7,12 @@ import type { Beats, Kind, Labels, Move } from '../../../commons/types';
 import { WordRow } from '../parts';
 
 const KIND_OPTIONS = KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }));
+
+/**
+ * 펼친 줄이 걸릴 화면 위쪽 자리.
+ * 토스 헤더가 스크롤 영역 위쪽을 덮으므로 0에 붙이면 그 밑으로 들어간다.
+ */
+const REVEAL_OFFSET = 100;
 
 type Props = {
   /** 지금 분류에 해당하는 동작들. */
@@ -54,12 +60,62 @@ export function WordsView({
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const open = useCallback((id: string) => setEditingId(id), []);
-  const close = useCallback(() => setEditingId(null), []);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const listTopRef = useRef(0);
+  const rowYRef = useRef<Record<string, number>>({});
+
+  /** 굴려 가는 중인 줄. 키보드가 뒤늦게 올라올 때 다시 겨눌 대상이다. */
+  const revealRef = useRef<string | null>(null);
+  const padRef = useRef(bottomPad);
+
+  const measureRow = useCallback((id: string, y: number) => {
+    rowYRef.current[id] = y;
+  }, []);
+
+  /** 그 줄의 입력칸이 화면 위쪽에 걸리도록 굴려 간다. 펼친 줄은 위가 곧 입력칸이다. */
+  const scrollToRow = useCallback((id: string) => {
+    const y = rowYRef.current[id];
+    const sv = scrollRef.current;
+    if (y === undefined || sv == null) return;
+    sv.scrollTo({ y: Math.max(0, listTopRef.current + y - REVEAL_OFFSET), animated: true });
+  }, []);
+
+  /*
+   * 펼치면서 그 줄로 굴려 간다. 아래쪽 줄은 편집칸이 열려도 키보드에 덮여서
+   * 그냥 두면 동작 길이와 삭제에 손이 닿지 않는다.
+   */
+  const open = useCallback(
+    (id: string) => {
+      setEditingId(id);
+      revealRef.current = id;
+      scrollToRow(id);
+    },
+    [scrollToRow]
+  );
+
+  const close = useCallback(() => {
+    revealRef.current = null;
+    setEditingId(null);
+  }, []);
+
+  /*
+   * 여백이 늘어나면 한 번 더 겨눈다.
+   *
+   * 펼치는 순간에는 아래 여백에 키보드가 안 들어가 있어서 굴릴 수 있는 끝이 짧다 —
+   * 마지막 줄은 그 끝에 걸려 목표까지 못 간다. 키보드가 올라와 여백이 늘어난 뒤 다시 부른다.
+   * 줄어들 때는 겨누지 않는다. 키보드를 내린 사람을 다시 끌고 갈 이유가 없다.
+   */
+  useEffect(() => {
+    const grew = bottomPad > padRef.current;
+    padRef.current = bottomPad;
+    if (grew && revealRef.current != null) scrollToRow(revealRef.current);
+  }, [bottomPad, scrollToRow]);
 
   // 분류가 바뀌면 편집 중이던 줄은 화면에서 사라진다. 버튼으로 오든 스와이프로 오든 같다.
+  // 굴려 갈 대상도 같이 지운다 — 사라진 줄을 뒤늦게 겨누면 엉뚱한 자리로 간다.
   const changeKind = useCallback(
     (k: Kind) => {
+      revealRef.current = null;
       setEditingId(null);
       onKindChange(k);
     },
@@ -71,6 +127,7 @@ export function WordsView({
   // 지운 줄은 사라지므로 편집칸도 같이 닫는다.
   const remove = useCallback(
     (id: string) => {
+      revealRef.current = null;
       setEditingId(null);
       onDelete(id);
     },
@@ -79,6 +136,7 @@ export function WordsView({
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.flex}
       contentContainerStyle={[styles.pad, { paddingBottom: bottomPad }]}
       keyboardShouldPersistTaps="handled"
@@ -101,7 +159,13 @@ export function WordsView({
         <Segmented options={KIND_OPTIONS} value={kind} onChange={changeKind} />
 
         {/* 쓸어 넘기는 건 목록만이다. 위쪽 도구 버튼까지 감싸면 그 터치와 얽힌다. */}
-        <SwipeArea onRight={swipe.prev} onLeft={swipe.next}>
+        <SwipeArea
+          onRight={swipe.prev}
+          onLeft={swipe.next}
+          onLayout={(e) => {
+            listTopRef.current = e.nativeEvent.layout.y;
+          }}
+        >
           {moves.map((m) => {
             const custom = !BASE_MOVES.some((b) => b.id === m.id);
             const override = labels[m.id] ?? '';
@@ -118,6 +182,7 @@ export function WordsView({
                 resettable={renamed || beats[m.id] !== undefined}
                 onOpen={open}
                 onClose={close}
+                onMeasure={measureRow}
                 onChangeName={onChangeName}
                 onChangeBeat={onChangeBeat}
                 onReset={onReset}
