@@ -390,6 +390,38 @@ describe('words — 호출어 한 줄 편집', () => {
     }
   });
 
+  /*
+   * 시트는 앱 트리 안의 뷰다. 뒤에 깔린 편집칸이 포커스를 놓지 않아 키보드가 시트 위에 남는다.
+   * 스크롤 뷰가 keyboardShouldPersistTaps라 RN이 대신 닫아주지도 않는다 — 여는 쪽이 직접 내린다.
+   */
+  it('동작 추가 시트를 열면 키보드를 내리고 펼친 줄을 접는다', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+
+    try {
+      await setup();
+      fireEvent.press(screen.getByLabelText('호출어'));
+
+      fireEvent.press(screen.getByText('잽'));
+      await waitFor(() => expect(screen.getByPlaceholderText('잽')).toBeTruthy());
+
+      fireEvent.press(screen.getByLabelText('동작 추가'));
+      expect(dismiss).toHaveBeenCalled();
+
+      /*
+       * 접혔는지는 시트를 닫고 나서 본다. 대역 시트가 accessibilityViewIsModal이라
+       * 열려 있는 동안에는 뒤쪽 트리가 통째로 안 잡혀, 접힘과 가려짐을 구별할 수 없다.
+       */
+      fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
+      fireEvent.press(screen.getByText('추가'));
+      await act(async () => {});
+
+      /* 펼친 채로 두면 이 칸의 autoFocus가 키보드를 도로 불러온다. */
+      expect(screen.queryByPlaceholderText('잽')).toBeNull();
+    } finally {
+      dismiss.mockRestore();
+    }
+  });
+
   it('번호로 일괄 변경하면 호출어가 번호가 된다', async () => {
     await setup();
     fireEvent.press(screen.getByLabelText('호출어'));
@@ -400,6 +432,26 @@ describe('words — 호출어 한 줄 편집', () => {
 });
 
 describe('picker — 탭으로 콤보 쌓기', () => {
+  /*
+   * 입력칸에 포커스를 둔 채 시트를 열면 키보드가 시트를 덮은 채로 남는다.
+   * 자리 문제이기도 하다 — useSheetHeight가 키보드만큼 시트 키를 줄이므로,
+   * 안 내리고 열면 쪼그라든 채 떴다가 키보드가 내려갈 때 들썩인다.
+   */
+  it('목록에서 고르기를 열면 키보드를 내린다', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+
+    try {
+      await setup();
+      fireEvent.press(screen.getByLabelText('콤보'));
+      fireEvent.press(screen.getByText('목록에서 고르기'));
+
+      await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
+      expect(dismiss).toHaveBeenCalled();
+    } finally {
+      dismiss.mockRestore();
+    }
+  });
+
   it('동작을 누르면 칩이 쌓이고 분류를 바꿔도 유지된다', async () => {
     await setup();
     fireEvent.press(screen.getByLabelText('콤보'));

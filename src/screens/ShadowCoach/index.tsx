@@ -71,6 +71,8 @@ function Screen() {
   const [addMoveOpen, setAddMoveOpen] = useState(false);
 
   const [wordKind, setWordKind] = useState<Kind>('punch');
+  /* 호출어 목록의 펼친 줄. 뷰가 쓰지만 동작 추가 시트가 접어야 해서 여기 있다. */
+  const [wordsEditing, setWordsEditing] = useState<string | null>(null);
 
   const [comboHint, setComboHint] = useState('');
   const kb = useKeyboardHeight();
@@ -265,9 +267,30 @@ function Screen() {
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
   const openSheet = useCallback(() => setSheetOpen(true), []);
-  const openPicker = useCallback(() => setPickerOpen(true), []);
+
+  /*
+   * 시트를 띄우기 전에 키보드를 내린다.
+   *
+   * 시트는 별도 네이티브 층이 아니라 앱 트리 안의 뷰다. 그래서 뒤에 깔린 입력칸이 포커스를
+   * 놓지 않고, 키보드가 시트 위에 그대로 남는다. 스크롤 뷰가 keyboardShouldPersistTaps라
+   * 버튼을 눌러도 RN이 대신 닫아주지 않는다 — 여는 쪽에서 직접 내려야 한다.
+   *
+   * 자리 문제이기도 하다. useSheetHeight는 키보드가 떠 있으면 시트 키를 그 위로 줄인다.
+   * 안 내리고 열면 쪼그라든 채 떴다가, 키보드가 내려갈 때 늘어나며 들썩인다.
+   *
+   * 설정 시트는 훈련 탭에서만 열리고 그 탭에는 입력칸이 없어 여기 끼우지 않는다.
+   */
+  const openPicker = useCallback(() => {
+    Keyboard.dismiss();
+    setPickerOpen(true);
+  }, []);
   const closePicker = useCallback(() => setPickerOpen(false), []);
-  const openAddMove = useCallback(() => setAddMoveOpen(true), []);
+  const openAddMove = useCallback(() => {
+    Keyboard.dismiss();
+    // 펼친 줄을 두고 열면 시트가 닫힐 때 그 줄의 autoFocus가 키보드를 도로 불러온다.
+    setWordsEditing(null);
+    setAddMoveOpen(true);
+  }, []);
   const closeAddMove = useCallback(() => setAddMoveOpen(false), []);
 
   /* 방금 넣은 동작이 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다. 그 분류로 옮겨준다. */
@@ -389,6 +412,8 @@ function Screen() {
           label={label}
           beatOf={beatOf}
           bottomPad={scrollPad}
+          editingId={wordsEditing}
+          onEditingChange={setWordsEditing}
           onApplyNumbers={applyNumbers}
           onResetBase={resetBaseLabels}
           onChangeName={changeWordName}

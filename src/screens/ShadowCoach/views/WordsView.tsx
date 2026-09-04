@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { RotateCcw, Segmented, SwipeArea, Tap, Typo } from '../../../commons/components';
 import { BASE_MOVES, C, KINDS, KIND_LABEL, MAXW } from '../../../commons/constants';
@@ -26,6 +26,9 @@ type Props = {
   label: (id: string) => string;
   beatOf: (id: string) => number;
   bottomPad: number;
+  /** 펼친 줄. 시트를 여는 쪽이 접어야 해서 화면이 들고 있다. */
+  editingId: string | null;
+  onEditingChange: (id: string | null) => void;
   onApplyNumbers: () => void;
   onResetBase: () => void;
   onChangeName: (id: string, value: string) => void;
@@ -50,6 +53,8 @@ export function WordsView({
   label,
   beatOf,
   bottomPad,
+  editingId,
+  onEditingChange,
   onApplyNumbers,
   onResetBase,
   onChangeName,
@@ -58,8 +63,6 @@ export function WordsView({
   onDelete,
   onPreview,
 }: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-
   const scrollRef = useRef<ScrollView | null>(null);
   const listTopRef = useRef(0);
   const rowYRef = useRef<Record<string, number>>({});
@@ -86,17 +89,17 @@ export function WordsView({
    */
   const open = useCallback(
     (id: string) => {
-      setEditingId(id);
+      onEditingChange(id);
       revealRef.current = id;
       scrollToRow(id);
     },
-    [scrollToRow]
+    [onEditingChange, scrollToRow]
   );
 
   const close = useCallback(() => {
     revealRef.current = null;
-    setEditingId(null);
-  }, []);
+    onEditingChange(null);
+  }, [onEditingChange]);
 
   /*
    * 여백이 늘어나면 한 번 더 겨눈다.
@@ -111,15 +114,23 @@ export function WordsView({
     if (grew && revealRef.current != null) scrollToRow(revealRef.current);
   }, [bottomPad, scrollToRow]);
 
+  /*
+   * 화면이 밖에서 줄을 접으면(동작 추가 시트) 겨눌 대상도 같이 지운다.
+   * 안 지우면 접힌 줄이 revealRef에 남아, 다음에 여백이 늘 때 엉뚱한 자리로 끌려간다.
+   */
+  useEffect(() => {
+    if (editingId == null) revealRef.current = null;
+  }, [editingId]);
+
   // 분류가 바뀌면 편집 중이던 줄은 화면에서 사라진다. 버튼으로 오든 스와이프로 오든 같다.
   // 굴려 갈 대상도 같이 지운다 — 사라진 줄을 뒤늦게 겨누면 엉뚱한 자리로 간다.
   const changeKind = useCallback(
     (k: Kind) => {
       revealRef.current = null;
-      setEditingId(null);
+      onEditingChange(null);
       onKindChange(k);
     },
-    [onKindChange]
+    [onEditingChange, onKindChange]
   );
 
   const swipe = useAdjacentStep(KINDS, kind, changeKind);
@@ -128,10 +139,10 @@ export function WordsView({
   const remove = useCallback(
     (id: string) => {
       revealRef.current = null;
-      setEditingId(null);
+      onEditingChange(null);
       onDelete(id);
     },
-    [onDelete]
+    [onEditingChange, onDelete]
   );
 
   return (
