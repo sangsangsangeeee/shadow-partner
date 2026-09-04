@@ -3,6 +3,7 @@ export {
   useMaterial,
   materialReducer,
   resetMaterial,
+  flushMaterial,
   type MaterialState,
   type MaterialAction,
 } from './useMaterial';

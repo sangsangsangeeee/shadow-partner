@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { AppState } from 'react-native';
 import { BASE_MOVES, DEFAULTS, STORAGE_KEYS } from '../../../commons/constants';
 import { loadJSON, moveIndex, resolveName, saveJSON, uid } from '../../../commons/utils';
 import type { Beats, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
@@ -220,15 +221,47 @@ function subscribe(listener: () => void) {
   };
 }
 
+/**
+ * 쓰기를 미루는 창.
+ *
+ * 슬라이더가 이걸 요구한다. TDS Slider는 onChangeEnd가 없어서 끄는 내내 스텝마다
+ * 발화하고, 콤보 간격(0.5~6.0 / 0.1)은 끝에서 끝까지 한 번 끌면 쓰기가 55번이다.
+ * 타자는 글자 수만큼이라 훨씬 적다 — 급한 쪽은 슬라이더다.
+ */
+const WRITE_DELAY = 300;
+
+/** 아직 안 나간 쓰기. 키마다 마지막 값만 남긴다 — 중간 값은 어차피 덮인다. */
+const pending = new Map<string, unknown>();
+let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 미뤄둔 것을 지금 전부 내보낸다. 앱이 내려갈 때와 테스트가 되감을 때 부른다. */
+export function flushMaterial() {
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  pending.forEach((value, key) => saveJSON(key, value));
+  pending.clear();
+}
+
+function queue(key: string, value: unknown) {
+  pending.set(key, value);
+  if (writeTimer) return; // 창이 이미 열려 있다. 뒤에 온 값이 앞의 것을 덮었다.
+  writeTimer = setTimeout(() => {
+    writeTimer = null;
+    flushMaterial();
+  }, WRITE_DELAY);
+}
+
 /* 조각마다 따로 저장한다. 하나를 고쳤을 때 다섯을 다 쓰지 않는다. */
 function persist(prev: MaterialState, next: MaterialState) {
   // 다 읽기 전에 쓰면 빈 값으로 덮는다. 방금 읽어 온 값을 되쓰는 것도 이 줄이 막는다.
   if (!prev.loaded) return;
-  if (next.combos !== prev.combos) saveJSON(STORAGE_KEYS.combos, next.combos);
-  if (next.settings !== prev.settings) saveJSON(STORAGE_KEYS.settings, next.settings);
-  if (next.labels !== prev.labels) saveJSON(STORAGE_KEYS.labels, next.labels);
-  if (next.customMoves !== prev.customMoves) saveJSON(STORAGE_KEYS.moves, next.customMoves);
-  if (next.beats !== prev.beats) saveJSON(STORAGE_KEYS.beats, next.beats);
+  if (next.combos !== prev.combos) queue(STORAGE_KEYS.combos, next.combos);
+  if (next.settings !== prev.settings) queue(STORAGE_KEYS.settings, next.settings);
+  if (next.labels !== prev.labels) queue(STORAGE_KEYS.labels, next.labels);
+  if (next.customMoves !== prev.customMoves) queue(STORAGE_KEYS.moves, next.customMoves);
+  if (next.beats !== prev.beats) queue(STORAGE_KEYS.beats, next.beats);
 }
 
 /** 신원이 영영 고정된 dispatch. memo를 건 자식들이 이걸 믿고 있다. */
@@ -265,6 +298,12 @@ function hydrateOnce() {
 
 /** 트리 밖에 사는 값은 저절로 초기화되지 않는다. 테스트가 화면을 여러 번 세운다. */
 export function resetMaterial() {
+  // 미뤄둔 쓰기는 내보내지 말고 버린다. 앞 테스트의 값이 뒤 테스트에 떨어지면 안 된다.
+  if (writeTimer) {
+    clearTimeout(writeTimer);
+    writeTimer = null;
+  }
+  pending.clear();
   current = INITIAL;
   loading = false;
   listeners.forEach((listener) => listener());
@@ -276,6 +315,17 @@ export function useMaterial(): MaterialStore {
 
   useEffect(() => {
     hydrateOnce();
+  }, []);
+
+  /*
+   * 쓰기를 미루는 대신 앱이 내려가는 순간을 붙잡아야 한다.
+   * 토스 미니앱은 사용자가 언제든 나가고, 슬라이더를 놓자마자 나가면 300ms 창이 안 닫힌다.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') flushMaterial();
+    });
+    return () => sub.remove();
   }, []);
 
   return useMemo(() => ({ state, dispatch: dispatchMaterial }), [state]);
