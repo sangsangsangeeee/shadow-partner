@@ -21,6 +21,5 @@
     "noUnusedParameters": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  // preview.tsx는 웹판 원본(DOM API·lucide-react). RN 프로젝트에서는 참고용이라 타입 검사 대상이 아니다.
-  "exclude": ["node_modules", "src/preview.tsx"]
+  "exclude": ["node_modules"]
 }

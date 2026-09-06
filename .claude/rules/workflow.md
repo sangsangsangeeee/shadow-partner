@@ -25,7 +25,7 @@ RN 0.84.0과 0.72.6 두 벌을 만들고 **둘 다** 0이어야 한다.
 python3 - <<'PY'
 import re, pathlib
 for f in pathlib.Path('src').rglob('*.tsx'):
-    if '__tests__' in str(f) or f.name == 'preview.tsx': continue
+    if '__tests__' in str(f): continue
     s = f.read_text()
     m = re.search(r'StyleSheet\.create\(\{(.*)\n\}\);', s, re.S)
     if not m: continue
