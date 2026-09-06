@@ -26,8 +26,12 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 
 ## TDS 채택
 
-방향이 하나가 아니다. **TDS 2.0.5는 토스 브랜드 색에 묶여 있고 이 앱은 검정 + 딥틸이라,
-색을 여는 컴포넌트만 받아들인다.** 들어간 것:
+**2026-09-06에 닫혔다. 더 받아들이지 않는다.** 지금 들어와 있는 것이 최종이고,
+남아 있던 `SegmentedControl` `TextField` `Stepper`는 안 바꾸기로 했다 —
+근거는 [TODO.md](../TODO.md) 1번에 그대로 있다. **다시 조사하지 마라.**
+
+방향이 하나가 아니었다. **TDS 2.0.5는 토스 브랜드 색에 묶여 있고 이 앱은 검정 + 딥틸이라,
+색을 여는 컴포넌트만 받아들였다.** 들어간 것:
 
 `TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Toast`
 
@@ -37,8 +41,9 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 
 `Slider`는 `color` prop을 받아 액센트가 살아 있다. `Checkbox` `Toast`는 색을 못 바꾼다.
 
-남은 셋의 조사 결과와 우선순위는 [TODO.md](../TODO.md) 1번에 있다.
-**`Stepper`는 교체 불가로 결론이 났다** — 거기 근거가 적혀 있다.
+**색을 못 맞추는 컴포넌트는 받지 않는다** — 이게 `Switch`·`Checkbox`를 되돌린 이유이자
+`SegmentedControl`·`TextField`를 안 받은 이유다. 새 TDS 컴포넌트를 넣자는 제안은
+먼저 이 질문을 통과해야 한다: **액센트를 얹을 수 있나?**
 
 **FAB는 TDS `Button`으로 바꾸지 마라.** 알약·원형 커스텀 모양이라 맞지 않는다.
 

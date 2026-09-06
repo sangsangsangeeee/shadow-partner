@@ -1,10 +1,11 @@
 # 남은 일
 
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
-TDS 교체는 보이는 걸 바꾸므로 전체 실물 점검 *앞에* 끝내야 한 번만 본다.
+그래서 보이는 걸 바꾸는 일은 전체 실물 점검 *앞에* 몰아서 끝낸다.
 
-마지막 갱신: **쌓여 있던 실기기 점검이 전부 닫혔다** (시트 전환 · 스와이프 · 0번 일곱 개).
-남은 관문은 TDS 교체와 그 뒤의 전체 점검뿐이다. 브랜치 `feat/shadow-coach`, main 미병합.
+마지막 갱신: **쌓여 있던 실기기 점검이 전부 닫혔고, TDS 교체는 안 하기로 했다.**
+보이는 걸 바꿀 일이 남지 않았다. **다음은 곧바로 전체 실기기 점검(2번)이고, 그게 병합 관문이다.**
+브랜치 `feat/shadow-coach`, main 미병합.
 
 ---
 
@@ -123,12 +124,20 @@ JS 스레드에서 매 프레임 `setValue`를 하는 방식이 실물에서 버
 
 ---
 
-## 1. TDS 남은 것 — `.d.ts`를 다 읽고 결론이 바뀌었다
+## 1. TDS 교체 — **하지 않는다. 2026-09-06에 닫혔다**
+
+셋 다 안 바꾼다. `Stepper`는 계약이 안 맞아서, `SegmentedControl`과 `TextField`는
+**받을 것보다 내줄 것이 크다고 판단해서.** 지금 것이 괜찮다는 게 결론이다.
 
 **아래는 추측이 아니라 번들에서 확인한 것이다. 다시 조사하지 마라.**
+되살리자는 제안이 나오면 새로 조사할 게 아니라 여기를 읽고, 그 사이에 무엇이 달라졌는지를 물어라.
+**색을 못 맞춘다는 사실이 바뀌지 않는 한 답은 그대로다.**
 
 공통 원인 하나가 셋 전부에 걸린다 — **TDS 2.0.5는 토스 브랜드 색(파랑·회색)에 박혀 있고
 이 앱은 검정 + 딥틸이다.** 전역 테마(`TDSProvider`의 `token`)로 뚫리는 건 `Button` 하나뿐이다.
+
+`Switch`와 `Checkbox`를 자체 구현으로 되돌린 이유가 남은 둘에도 그대로 걸린다.
+**액센트를 잃으면서까지 남의 구현을 받을 이유가 없다** — 지금 것은 실기기에서 다 확인됐고 잘 돈다.
 
 ### 1-1. `Stepper` → **교체 불가. 하지 마라**
 
@@ -144,18 +153,20 @@ TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
 **4곳 중 0곳이 그대로 옮겨진다.** 둘만 바꾸면 같은 시트 안에 두 모양이 섞이고
 [Stepper.tsx](../src/commons/components/Stepper.tsx) 76줄도 못 지운다 — 노렸던 이득이 사라진다.
 
-### 1-2. `Segmented` → `SegmentedControl.Root/Item`
+### 1-2. `Segmented` → `SegmentedControl.Root/Item` — **안 한다**
+
+**내줄 게 제일 크고 받을 게 제일 작다.** 선택된 칸의 액센트를 잃고 6곳이 동시에 흔들리는데,
+값이 number라 문자열 왕복이 남아서 [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄을 지우지도 못한다.
 
 제네릭 우려는 사실이었다. `Root`는 `value: string` 고정인데
 `BEAT_SEGMENTS`의 값은 **number**(0.4·0.5·0.65·0.85·1.05)다.
 
-- [ ] `AddMoveSheet`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)을 붙인다
-- [ ] `name: string`이 필수 — 6곳 전부 새 prop
-- [ ] 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
-- [ ] `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
-      동작 길이 5칸에서 줄이지 못한다
-- [ ] 6곳 교체 — AddMoveSheet(2) · SettingsSheet · MovePickerSheet · WordRow · WordsView
-- [ ] [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄 삭제
+- `AddMoveSheet`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)이 붙는다
+- `name: string`이 필수 — 6곳 전부 새 prop
+- 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
+- `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
+  동작 길이 5칸에서 줄이지 못한다
+- 6곳이 한꺼번에 움직인다 — AddMoveSheet(2) · SettingsSheet · MovePickerSheet · WordRow · WordsView
 
 **색** — 인디케이터가 `colorPreference`만 보고 `dark → inverseGrey300`으로 하드코딩돼 있다.
 선택된 칸의 `ACCENT` 딥틸이 회색이 된다. `Indicator`는 공개 API(`SegmentedControl = { Root, Item }`)에
@@ -164,14 +175,18 @@ TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
 **위험** — 6곳이 동시에 움직인다. `WordRow` 것은 memo가 걸린 줄 안에 있어서
 prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스트가 잡는다. 잡히면 고마운 거다.
 
-### 1-3. `TextInput` → `TextField`
+### 1-3. `TextInput` → `TextField` — **안 한다**
+
+셋 중 제일 아깝지만 접는다. [Field.tsx](../src/commons/components/Field.tsx) 57줄이 사라지는 대신
+포커스 라인이 `blue400`이 되고, `WordRow`의 좁은 인라인 편집기가 자기 높이·라벨·패딩을 들고 오는 것에
+맞서야 한다. **픽셀 충실도를 내주고 사는 57줄이 아니다.**
 
 **계약은 셋 중 제일 잘 맞는다.** `variant`(필수) · `label` · `labelOption` · `help` · `hasError` ·
 `paddingTop/Bottom` · `containerStyle` · `prefix`/`suffix`/`right`가 있고 `TextInputProps`가 통과한다.
 
-- [ ] [Field.tsx](../src/commons/components/Field.tsx) — 라벨이 내장이라 이 컴포넌트가 통째로 없어진다
-- [ ] [CombosView.tsx:125](../src/screens/ShadowCoach/views/CombosView.tsx#L125) — 콤보 입력. 칩 역동기화가 붙어 있다
-- [ ] [WordRow.tsx:79](../src/screens/ShadowCoach/parts/WordRow.tsx#L79) — **한 줄 인라인 편집기. 여기가 제일 위험**
+- [Field.tsx](../src/commons/components/Field.tsx) — 라벨이 내장이라 이 컴포넌트가 통째로 없어진다
+- [CombosView.tsx:125](../src/screens/ShadowCoach/views/CombosView.tsx#L125) — 콤보 입력. 칩 역동기화가 붙어 있다
+- [WordRow.tsx:79](../src/screens/ShadowCoach/parts/WordRow.tsx#L79) — **한 줄 인라인 편집기. 여기가 제일 위험**
 
 **색은 못 맞춘다.** 색 prop이 없고 전부 `useAdaptive()`가 정한다 —
 글자 `grey800` · 플레이스홀더 `grey500` · 라인 `grey100` / 포커스 `blue400` / 오류 `red600`.
@@ -187,18 +202,23 @@ prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스�
   `Container`는 export되지도 않는다. 바꾸려면 자체 시트를 만드는 수밖에 없다.
 - **`Switch` 트랙 색** — `grey200 → blue500` 하드코딩. 그래서 RN 내장으로 되돌렸다.
 
-**둘을 한 커밋에 묶지 마라.** 실물에서 어디가 깨졌는지 못 짚는다.
+### 그럼 `Segmented` 글자 1px은?
+
+**진행 중 절에 남아 있던 그 한 줄은 여기와 무관하다.** 우리 컴포넌트를 우리가 고치는 것이라
+색을 내줄 일이 없다. 하려면 그냥 하면 된다.
 
 ---
 
-## 2. 전체 실기기 점검
+## 2. 전체 실기기 점검 — **지금 여기다**
+
+앞이 다 닫혔다. 보이는 걸 바꾸는 작업이 더 없으므로 **지금 본 것이 병합될 모습이다.**
 
 - [ ] 기획서 11장의 14개 시나리오를 기기에서 한 번씩 —
       `nav` `fabshow` `fab` `chip` `dup` `reveal` `undo` `moveundo` `addmove` `words` `beats` `picker` `gap` `done`
 - [ ] 3라운드 완주 한 번 (화면 꺼짐 방지 `useKeepAwake`가 실제로 먹는지)
 - [ ] 저장소 껐다 켜기 — 앱 종료 후 콤보·설정·호출어가 살아 있는지
 
-TDS 교체가 끝난 상태로 한 번에. 여기를 통과하면 main에 병합할 수 있다.
+여기를 통과하면 main에 병합하고, 같이 [preview.tsx](../src/preview.tsx) 2289줄을 지운다(3-3).
 
 ---
 
@@ -251,6 +271,8 @@ FAB는 `kb + 16`([index.tsx:439](../src/screens/ShadowCoach/index.tsx#L439)),
 |---|---|
 | FAB를 TDS `Button`으로 | 알약·원형 커스텀 모양이라 맞지 않는다. 실물에서 어색하면 그때 다시 |
 | adaptive 색 토큰 | 검정 바탕 고정. 다크에서 뒤집혀 흰 글자를 못 얹는다 |
+| `SegmentedControl`·`TextField` 교체 | 액센트·픽셀을 내주고 받는 게 적다. 근거는 1번에 그대로 있다 |
+| `Stepper` 교체 | 계약이 안 맞는다. `NumericSpinner`에 `step`이 없다 — 1-1 |
 | 애니메이션으로 콤보 보여주기 | 기획서 12장 — 화면을 응시하게 만들어 자세가 무너진다 |
 | 리듬게임 UI·판정·점수 | 기획서 12장 — TTS 첫 호출 지연이 100~400ms 튄다. 어긋난 리듬을 배우게 된다 |
 
