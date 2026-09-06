@@ -32,12 +32,23 @@ export function Button({ children, onPress, disabled, ...rest }: any) {
   );
 }
 
-export function Slider({ value, min, max, onChange, accessibilityLabel }: any) {
+export function Slider({ value, min, max, step = 1, onChange, accessibilityLabel }: any) {
+  /*
+   * 실물은 손가락 자리를 눈금으로 바꿔 onChange를 부른다. 여기서 손가락을 흉내낼 수는 없다.
+   * 대신 실물이 스스로 처리하는 접근성 증감을 그대로 흉내낸다 — 테스트가 값을 미는 통로다.
+   */
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <View
       accessibilityRole="adjustable"
       accessibilityLabel={accessibilityLabel}
       accessibilityValue={{ min, max, now: value }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(e: any) => {
+        const name = e?.nativeEvent?.actionName;
+        if (name === 'increment') onChange?.(clamp(value + step));
+        if (name === 'decrement') onChange?.(clamp(value - step));
+      }}
       onTouchEnd={() => onChange?.(value)}
     />
   );

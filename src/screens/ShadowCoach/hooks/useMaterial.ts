@@ -80,8 +80,16 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
     case 'hydrate':
       return { ...state, ...action.value, loaded: true };
 
-    case 'patchSettings':
+    case 'patchSettings': {
+      /*
+       * 값이 그대로면 상태도 그대로여야 한다.
+       * 슬라이더는 손가락이 움직이는 내내 부르고 같은 눈금에서도 여러 번 온다.
+       * 새 객체를 만들면 그때마다 화면 전체가 다시 그려진다 — 바뀐 게 없는데도.
+       */
+      const keys = Object.keys(action.patch) as (keyof Settings)[];
+      if (keys.every((k) => Object.is(state.settings[k], action.patch[k]))) return state;
       return { ...state, settings: { ...state.settings, ...action.patch } };
+    }
 
     case 'addCombo':
       return { ...state, combos: [{ id: uid(), moves: action.moves, on: true }, ...state.combos] };

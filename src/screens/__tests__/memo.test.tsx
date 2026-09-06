@@ -87,12 +87,28 @@ jest.mock('../ShadowCoach/parts', () => {
   };
 });
 
+/** 훈련 화면이 다시 그려졌는지를 렌더마다 쌓는다. 슬라이더가 화면을 흔드는지 보는 자리다. */
+const mockTrainProps: Captured[] = [];
+
+jest.mock('../ShadowCoach/views', () => {
+  const actual = jest.requireActual('../ShadowCoach/views');
+  const React2 = jest.requireActual('react');
+  return {
+    ...actual,
+    TrainView: (props: Captured) => {
+      mockTrainProps.push(props);
+      return React2.createElement(actual.TrainView, props);
+    },
+  };
+});
+
 beforeEach(() => {
   const store = (globalThis as Record<string, unknown>).__memoStore as Map<string, string> | undefined;
   store?.clear();
   resetMaterial();
   mockCardProps.length = 0;
   mockRowProps.length = 0;
+  mockTrainProps.length = 0;
 });
 
 const setup = async () => {
@@ -178,5 +194,41 @@ describe('memo — 목록 아이템에 넘어가는 콜백의 신원', () => {
     const others = mockRowProps.filter((p) => (p['move'] as { id: string }).id !== 'jab');
     expect(changed.some((p) => p['name'] === '원투')).toBe(true);
     expect(others.every((p) => p['name'] !== '원투')).toBe(true);
+  });
+});
+
+/*
+ * 슬라이더는 손가락이 움직이는 내내 부른다. 자료는 트리 밖의 한 벌이라
+ * 한 틱을 그대로 흘려보낼 때마다 화면 전체가 다시 그려지고, 그 일에 JS 스레드를 다 써서
+ * 정작 손가락을 못 따라간다. 실기기에서 "반응이 느리다"로 잡힌 것이 이것이다.
+ */
+describe('slider — 끄는 동안 화면을 흔들지 않는다', () => {
+  it('여덟 칸을 끌어도 훈련 화면은 그대로, 손을 멈추면 한 번만 들어간다', async () => {
+    jest.useFakeTimers();
+    await setup();
+    fireEvent.press(screen.getByLabelText('설정'));
+    await act(async () => {});
+
+    const slider = screen.getByLabelText('템포');
+    mockTrainProps.length = 0;
+
+    for (let i = 0; i < 8; i++) {
+      fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    }
+
+    // 끄는 동안 자료는 안 건드린다 — 화면은 한 번도 다시 안 그려진다
+    expect(mockTrainProps).toHaveLength(0);
+    // 숫자는 손가락을 따라간다. 저장을 미룬 것이지 안 보여주는 게 아니다.
+    expect(screen.getByText('1.40배')).toBeTruthy();
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+
+    // 손을 멈추면 그제서야, 그것도 한 번만
+    expect(mockTrainProps).toHaveLength(1);
+    expect((mockTrainProps[0] as { settings: { tempo: number } }).settings.tempo).toBeCloseTo(1.4);
+
+    jest.useRealTimers();
   });
 });

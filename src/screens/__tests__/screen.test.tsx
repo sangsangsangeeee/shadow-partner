@@ -286,6 +286,36 @@ describe('undo — 삭제와 되돌리기', () => {
   });
 });
 
+/*
+ * 슬라이더는 자료에 바로 안 넣고 손을 멈추기를 기다린다(화면 전체가 다시 그려지는 걸 막으려고).
+ * 그 사이에 시트를 닫으면 미뤄 둔 마지막 한 칸이 날아갈 자리라, 사라질 때 넣고 간다.
+ */
+describe('settings — 미뤄 둔 슬라이더 값', () => {
+  it('끌자마자 시트를 닫아도 마지막 값이 남는다', async () => {
+    jest.useFakeTimers();
+    await setup();
+    fireEvent.press(screen.getByLabelText('설정'));
+    await act(async () => {});
+
+    fireEvent(screen.getByLabelText('템포'), 'accessibilityAction', {
+      nativeEvent: { actionName: 'increment' },
+    });
+    expect(screen.getByText('1.05배')).toBeTruthy();
+
+    // 미루는 시간이 차기 전에 닫는다
+    fireEvent.press(screen.getByText('완료'));
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+
+    fireEvent.press(screen.getByLabelText('설정'));
+    await act(async () => {});
+    expect(screen.getByText('1.05배')).toBeTruthy();
+
+    jest.useRealTimers();
+  });
+});
+
 describe('words — 호출어 한 줄 편집', () => {
   it('평소엔 글자만 보이고, 누르면 그 줄만 편집으로 바뀐다', async () => {
     await setup();

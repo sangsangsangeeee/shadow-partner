@@ -102,7 +102,7 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
         <View style={styles.divider}>
           <Slider
             label="템포"
-            hint={`${settings.tempo.toFixed(2)}배`}
+            format={(v) => `${v.toFixed(2)}배`}
             min={0.5}
             max={2}
             step={0.05}
@@ -111,7 +111,7 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
           />
           <Slider
             label="콤보 간격"
-            hint={`${settings.gap.toFixed(1)}초`}
+            format={(v) => `${v.toFixed(1)}초`}
             min={0.5}
             max={6}
             step={0.1}
@@ -157,7 +157,7 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
 
           <Slider
             label="말 속도"
-            hint={settings.rate.toFixed(2)}
+            format={(v) => v.toFixed(2)}
             min={0.5}
             max={2}
             step={0.05}

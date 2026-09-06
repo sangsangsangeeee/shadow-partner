@@ -105,3 +105,24 @@ describe('resetBaseMoves — 기본만 되돌리고 직접 추가한 것은 남�
     expect(next.beats).toEqual({ c_elbow: 0.9 });
   });
 });
+
+/*
+ * 값이 그대로면 상태도 그대로여야 한다. 자료가 트리 밖에 한 벌이라
+ * 새 객체를 하나 만들 때마다 화면 전체가 다시 그려진다 — 슬라이더는 같은 눈금에서도 여러 번 부른다.
+ */
+describe('patchSettings — 안 바뀐 값은 상태를 새로 만들지 않는다', () => {
+  it('같은 값을 넣으면 들어온 상태를 그대로 돌려준다', () => {
+    const state = base();
+    expect(materialReducer(state, { type: 'patchSettings', patch: { tempo: state.settings.tempo } })).toBe(state);
+  });
+
+  it('한 조각이라도 다르면 새로 만든다', () => {
+    const state = base();
+    const next = materialReducer(state, {
+      type: 'patchSettings',
+      patch: { tempo: state.settings.tempo, gap: state.settings.gap + 0.1 },
+    });
+    expect(next).not.toBe(state);
+    expect(next.settings.gap).toBeCloseTo(state.settings.gap + 0.1);
+  });
+});
