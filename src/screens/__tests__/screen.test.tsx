@@ -252,6 +252,38 @@ describe('undo — 삭제와 되돌리기', () => {
     expect(screen.getByText('콤보 3개 · 3개 사용')).toBeTruthy();
     jest.useRealTimers();
   });
+
+  /*
+   * 실기기에서 잡힌 것 — 첫 번째만 접히고 두 번째부터 영영 남아 있었다.
+   * TDS 토스트는 시계를 마운트 때 한 번만 걸어서, 트리에 계속 떠 있으면 다시 감기지 않는다.
+   * 화면이 되돌리기 번호를 key로 써서 갈아 끼우는 것으로 푼다. 그 갈아 끼움이 여기서 깨진다.
+   */
+  it('두 번째 삭제도 스스로 접는다', async () => {
+    jest.useFakeTimers();
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+
+    const deleteFirst = () => {
+      fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
+      fireEvent.press(screen.getByText('삭제'));
+    };
+
+    deleteFirst();
+    await waitFor(() => expect(screen.getByText('되돌리기')).toBeTruthy());
+    await act(async () => {
+      jest.advanceTimersByTime(TOAST_MS + 100);
+    });
+    expect(screen.queryByText('되돌리기')).toBeNull();
+
+    deleteFirst();
+    await waitFor(() => expect(screen.getByText('되돌리기')).toBeTruthy());
+    await act(async () => {
+      jest.advanceTimersByTime(TOAST_MS + 100);
+    });
+    expect(screen.queryByText('되돌리기')).toBeNull();
+
+    jest.useRealTimers();
+  });
 });
 
 describe('words — 호출어 한 줄 편집', () => {

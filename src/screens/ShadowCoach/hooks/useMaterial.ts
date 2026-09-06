@@ -49,6 +49,17 @@ const INITIAL: MaterialState = {
 
 const isBase = (id: string) => BASE_MOVES.some((m) => m.id === id);
 
+/*
+ * 되돌리기가 열릴 때마다 새 번호를 준다.
+ * TDS 토스트는 사라지는 시계를 **마운트 때 한 번만** 걸어서, 트리에 계속 떠 있는 채로는
+ * 두 번째 삭제부터 영영 안 닫힌다. 화면이 이 번호를 key로 써서 시계를 다시 감는다.
+ *
+ * 상태에서 세지 않는다 — 접히면 undo가 null이 되어 번호도 같이 사라진다.
+ * 그러면 다음 삭제가 같은 번호를 받아 열쇠가 안 바뀌고, 고치려던 것이 그대로 남는다.
+ */
+let undoSeq = 0;
+const nextUndoId = () => (undoSeq += 1);
+
 /** 키 하나를 뺀 사본. 되돌아갈 값이 "없음"인 경우를 표현한다. */
 function omit<T>(map: Record<string, T>, id: string): Record<string, T> {
   const next = { ...map };
@@ -104,7 +115,7 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
       return {
         ...state,
         combos: state.combos.filter((c) => c.id !== action.id),
-        undo: { text, before: { combos: state.combos } },
+        undo: { id: nextUndoId(), text, before: { combos: state.combos } },
       };
     }
 
@@ -175,6 +186,7 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
         beats: omit(state.beats, action.id),
         labels: omit(state.labels, action.id),
         undo: {
+          id: nextUndoId(),
           text: affected ? `${move.name} 지웠어 · 콤보 ${affected}개에서 빠짐` : `${move.name} 지웠어`,
           before: {
             combos: state.combos,

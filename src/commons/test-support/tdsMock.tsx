@@ -67,11 +67,16 @@ export const BottomSheet = { Root, Header, CTA, HeaderDescription, Select };
 
 /** 실물은 duration이 지나면 스스로 onClose를 부른다. 대역도 그 시계를 그대로 흉내낸다. */
 function ToastBase({ open, text, button, duration, onClose }: any) {
+  /*
+   * 실물을 그대로 흉내낸다. 두 가지가 함정이라 여기서 봐줘 버리면 기기에서만 깨진다.
+   * `duration`은 ms가 아니라 **초**고(`duration * 1000`으로 건다),
+   * 시계는 **마운트 때 한 번만** 걸린다 — open이 다시 켜져도 되감기지 않는다.
+   * 트리에 계속 남아 있는 토스트는 그래서 두 번째부터 스스로 안 닫힌다.
+   */
   React.useEffect(() => {
-    if (!open) return undefined;
-    const t = setTimeout(() => onClose?.(), duration ?? 5000);
+    const t = setTimeout(() => onClose?.(), (duration ?? (button ? 5 : 3)) * 1000);
     return () => clearTimeout(t);
-  }, [open, duration, onClose]);
+  }, []);
 
   if (!open) return null;
   return (

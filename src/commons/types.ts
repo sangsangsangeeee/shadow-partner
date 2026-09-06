@@ -73,6 +73,8 @@ export interface Material {
  * 되돌리기가 그것까지 같이 되감아 버린다.
  */
 export interface UndoEntry {
+  /** 되돌릴 기회가 새로 열릴 때마다 올라간다. 토스트의 시계를 다시 감는 열쇠다. */
+  id: number;
   text: string;
   before: Partial<Material>;
 }

@@ -62,6 +62,14 @@ function Screen() {
   const { state: material, dispatch, moveMap, alias, allMoves, label, beatOf } = useMaterialContext();
   const { combos, settings, labels, customMoves, beats, undo } = material;
 
+  /*
+   * 토스트를 갈아 끼울 열쇠. 닫힌 뒤에도 마지막 번호를 들고 있는다 —
+   * 사라질 때 같이 바뀌면 접히는 동작이 잘리고 그냥 없어진다.
+   */
+  const undoKeyRef = useRef(0);
+  if (undo != null) undoKeyRef.current = undo.id;
+  const undoKey = undoKeyRef.current;
+
   const [tab, setTab] = useState<Tab>('train');
 
   const [draft, setDraft] = useState('');
@@ -470,11 +478,16 @@ function Screen() {
         그래서 여기서는 안전영역을 빼고 넘긴다. 두 번 더하면 그만큼 떠버린다.
         훈련 탭에서는 띄우지 않는다(기획서 9장). 삭제는 콤보·호출어 탭에서만 일어나고
         탭을 옮기면 goTab이 정리하므로, 안 떠 있는 동안 시계가 멈춰 있을 일은 없다.
+
+        key와 duration 둘 다 TDS 쪽 사정이다.
+        시계는 마운트 때 한 번만 걸리므로 되돌리기가 새로 열릴 때마다 갈아 끼워야 다시 감긴다.
+        duration은 ms가 아니라 초다.
       */}
       <Toast
+        key={undoKey}
         open={undo != null && tab !== 'train'}
         text={undo?.text ?? ''}
-        duration={TOAST_MS}
+        duration={TOAST_MS / 1000}
         bottomOffset={kb > 0 ? kb + 80 - bottomSafe : anyFabShown ? LAYER.toastWithFab : LAYER.toastAlone}
         onClose={dismissUndo}
         button={<Toast.Button onPress={restoreUndo}>되돌리기</Toast.Button>}
