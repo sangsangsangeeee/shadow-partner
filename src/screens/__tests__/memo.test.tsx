@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
 import { resetMaterial } from '../ShadowCoach/hooks';
+import { resetStorage } from '../../commons/test-support/storageMock';
 
 /* 아래 목들은 다른 화면 테스트와 같은 이유로 경계에서 갈아끼운다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -33,24 +34,6 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
   };
 });
 
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>();
-  (globalThis as Record<string, unknown>).__memoStore = store;
-  return {
-    __esModule: true,
-    default: {
-      getItem: (k: string) => Promise.resolve(store.get(k) ?? null),
-      setItem: (k: string, v: string) => {
-        store.set(k, v);
-        return Promise.resolve();
-      },
-      removeItem: (k: string) => {
-        store.delete(k);
-        return Promise.resolve();
-      },
-    },
-  };
-});
 
 jest.mock('@granite-js/native/react-native-webview', () => {
   const { View } = jest.requireActual('react-native');
@@ -60,6 +43,9 @@ jest.mock('@granite-js/native/react-native-webview', () => {
 jest.mock('@apps-in-toss/native-modules', () => ({
   setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
   generateHapticFeedback: jest.fn(),
+  /* 저장소는 토스 것을 쓴다. 미니앱을 껐다 켜도 남아야 하는 자리라 AsyncStorage로는 안 된다. */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Storage: require('../../commons/test-support/storageMock').Storage,
 }));
 
 /*
@@ -103,8 +89,7 @@ jest.mock('../ShadowCoach/views', () => {
 });
 
 beforeEach(() => {
-  const store = (globalThis as Record<string, unknown>).__memoStore as Map<string, string> | undefined;
-  store?.clear();
+  resetStorage();
   resetMaterial();
   mockCardProps.length = 0;
   mockRowProps.length = 0;

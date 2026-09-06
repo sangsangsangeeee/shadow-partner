@@ -10,15 +10,19 @@ jest.mock('@toss/tds-react-native', () => require('../../../../commons/test-supp
 
 const writes: { key: string; value: string }[] = [];
 
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: {
+/* 저장은 이제 토스 저장소로 나간다. 무엇이 언제 나갔는지만 보면 되므로 쓰기를 붙잡아 둔다. */
+jest.mock('@apps-in-toss/native-modules', () => ({
+  Storage: {
     getItem: () => Promise.resolve(null),
     setItem: (key: string, value: string) => {
       writes.push({ key, value });
       return Promise.resolve();
     },
+    removeItem: () => Promise.resolve(),
+    clearItems: () => Promise.resolve(),
   },
+  setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
+  generateHapticFeedback: jest.fn(),
 }));
 
 import { dispatchMaterial, flushMaterial, resetMaterial } from '../useMaterial';

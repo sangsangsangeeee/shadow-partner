@@ -2,7 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
-import { resetMaterial } from '../ShadowCoach/hooks';
+import { flushMaterial, resetMaterial } from '../ShadowCoach/hooks';
+import { resetStorage, storageSnapshot } from '../../commons/test-support/storageMock';
 import { ACCENT, KIND_LABEL } from '../../commons/constants';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -31,24 +32,7 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
     initialWindowMetrics: { frame: { x: 0, y: 0, width: 390, height: 844 }, insets },
   };
 });
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>();
-  (globalThis as Record<string, unknown>).__flowStore = store;
-  return {
-    __esModule: true,
-    default: {
-      getItem: (k: string) => Promise.resolve(store.get(k) ?? null),
-      setItem: (k: string, v: string) => {
-        store.set(k, v);
-        return Promise.resolve();
-      },
-      removeItem: (k: string) => {
-        store.delete(k);
-        return Promise.resolve();
-      },
-    },
-  };
-});
+
 jest.mock('@granite-js/native/react-native-webview', () => {
   const { View } = jest.requireActual('react-native');
   return { __esModule: true, WebView: View };
@@ -56,16 +40,18 @@ jest.mock('@granite-js/native/react-native-webview', () => {
 jest.mock('@apps-in-toss/native-modules', () => ({
   setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
   generateHapticFeedback: jest.fn(),
+  /* 저장소는 토스 것을 쓴다. 미니앱을 껐다 켜도 남아야 하는 자리라 AsyncStorage로는 안 된다. */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Storage: require('../../commons/test-support/storageMock').Storage,
 }));
 
-const store = () => (globalThis as Record<string, unknown>).__flowStore as Map<string, string>;
 const saved = <T,>(key: string): T | null => {
-  const raw = store().get(key);
+  const raw = storageSnapshot().get(key);
   return raw ? (JSON.parse(raw) as T) : null;
 };
 
 beforeEach(() => {
-  store().clear();
+  resetStorage();
   resetMaterial();
 });
 
@@ -312,5 +298,57 @@ describe('done — 완주, 통계 집계, 재시작', () => {
     expect(screen.queryByText('STAGE CLEAR')).toBeNull();
     expect(screen.getByText('준비')).toBeTruthy();
     jest.useRealTimers();
+  });
+});
+
+/*
+ * 미니앱을 완전히 종료했다 다시 여는 것.
+ *
+ * 기기에서 콤보와 호출어가 통째로 초기화되는 것으로 깨진 자리다 —
+ * `AsyncStorage`는 토스 미니앱을 껐다 켜면 남지 않는다. 지금은 토스 저장소를 쓴다.
+ *
+ * 흉내내는 방법: 저장소는 그대로 두고 **메모리만** 되감는다.
+ * 자료는 리액트 트리 밖 모듈 상태라, 그것이 곧 JS 컨텍스트가 새로 서는 것과 같다.
+ */
+describe('저장소 — 껐다 켜도 남는다', () => {
+  it('넣은 콤보와 바꾼 호출어가 다시 열었을 때 그대로다', async () => {
+    const first = render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
+
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 잽 로우킥');
+    await act(async () => {});
+    fireEvent.press(screen.getByText('콤보 저장'));
+    await act(async () => {});
+
+    fireEvent.press(screen.getByLabelText('호출어'));
+    fireEvent.press(screen.getByText('잽'));
+    await act(async () => {});
+    fireEvent.changeText(screen.getByPlaceholderText('잽'), '원');
+    await act(async () => {});
+
+    // 미뤄둔 쓰기를 내보낸다. 앱이 내려가는 순간에 일어나는 일과 같다.
+    act(() => flushMaterial());
+    first.unmount();
+
+    // 여기서부터 새로 켠 앱이다. 저장소는 그대로, 메모리는 비었다.
+    resetMaterial();
+
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
+    fireEvent.press(screen.getByLabelText('콤보'));
+    // 넣은 콤보가 목록에 남아 있고
+    await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
+    // 바꾼 호출어도 남아서 칩에 '잽'이 아니라 '원'으로 뜬다
+    expect(screen.getAllByText('원').length).toBeGreaterThan(0);
+    expect(screen.queryByText('잽')).toBeNull();
   });
 });

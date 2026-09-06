@@ -6,9 +6,12 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../../../commons/test-support/tdsMock'));
 
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: { getItem: () => Promise.resolve(null), setItem: () => Promise.resolve() },
+/* 렌더를 안 해도 import 사슬이 저장소에 닿는다. */
+jest.mock('@apps-in-toss/native-modules', () => ({
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Storage: require('../../../../commons/test-support/storageMock').Storage,
+  setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
+  generateHapticFeedback: jest.fn(),
 }));
 
 import { materialReducer, type MaterialState } from '../useMaterial';

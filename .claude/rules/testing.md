@@ -29,8 +29,14 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 
 **색상만은 진짜 값을 쓴다** — 팔레트 상수가 모듈 로드 시점에 읽기 때문.
 
-`@granite-js/native/*`(svg · safe-area · async-storage · webview)와
-`@apps-in-toss/native-modules`도 각 테스트 파일 상단에서 mock한다.
+`@granite-js/native/*`(svg · safe-area · webview)와 `@apps-in-toss/native-modules`도
+각 테스트 파일 상단에서 mock한다.
+
+**저장소 대역은 `@apps-in-toss/native-modules`의 `Storage` 자리에 끼운다** —
+`test-support/storageMock`을 공용으로 쓰고 `resetStorage()`로 비운다.
+예전에는 `AsyncStorage`를 mock했는데, 그건 **실물이 안 쓰는 것을 지키고 있었다.**
+대역이 어느 모듈에 붙어 있는지는 곧 "무엇이 진짜인지"에 대한 우리 믿음이다. 그게 틀리면
+테스트가 전부 초록이어도 기기에서 자료가 통째로 날아간다 — 실제로 그랬다.
 
 `@granite-js/native/react-native-gesture-handler`는 **빈 객체로 들어온다.** 번들러가 실제 패키지로
 치환하는 껍데기라 dist에 런타임 JS가 없다(`Gesture`가 undefined). `gestureMock`으로 갈아끼운다.

@@ -51,7 +51,7 @@ src/
     hooks/      범용 훅
     utils/      파서 · 저장소 · 포맷 · 링 기하 · 이름 해석
     types.ts    도메인 모델
-    test-support/tdsMock · routerMock · gestureMock
+    test-support/tdsMock · routerMock · gestureMock · storageMock
   screens/ShadowCoach/        `/` 라우트. 유일한 라우트다.
     index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층과 시트를 얹는다.
     MaterialContext.tsx  자료의 파생 조회를 화면 안에서 한 번만 계산한다

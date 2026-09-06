@@ -32,14 +32,7 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
     initialWindowMetrics: { frame: { x: 0, y: 0, width: 390, height: 844 }, insets },
   };
 });
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: {
-    getItem: () => Promise.resolve(null),
-    setItem: () => Promise.resolve(),
-    removeItem: () => Promise.resolve(),
-  },
-}));
+
 jest.mock('@granite-js/native/react-native-webview', () => {
   const { View } = jest.requireActual('react-native');
   return { __esModule: true, WebView: View };
@@ -47,6 +40,9 @@ jest.mock('@granite-js/native/react-native-webview', () => {
 jest.mock('@apps-in-toss/native-modules', () => ({
   setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
   generateHapticFeedback: jest.fn(),
+  /* 저장소는 토스 것을 쓴다. 미니앱을 껐다 켜도 남아야 하는 자리라 AsyncStorage로는 안 된다. */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Storage: require('../../commons/test-support/storageMock').Storage,
 }));
 
 const haptic = generateHapticFeedback as jest.Mock;

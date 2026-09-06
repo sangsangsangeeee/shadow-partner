@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
 import { resetMaterial } from '../ShadowCoach/hooks';
+import { resetStorage } from '../../commons/test-support/storageMock';
 import { fireSwipe, resetGestureMock, swipeAreaCount } from '../../commons/test-support/gestureMock';
 import { CHIP_TRAY_H, TOAST_MS } from '../../commons/constants';
 
@@ -42,24 +43,6 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
   };
 });
 
-jest.mock('@granite-js/native/@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>();
-  (globalThis as Record<string, unknown>).__sbcStore = store;
-  return {
-    __esModule: true,
-    default: {
-      getItem: (k: string) => Promise.resolve(store.get(k) ?? null),
-      setItem: (k: string, v: string) => {
-        store.set(k, v);
-        return Promise.resolve();
-      },
-      removeItem: (k: string) => {
-        store.delete(k);
-        return Promise.resolve();
-      },
-    },
-  };
-});
 
 // 소리 엔진은 화면 밖 웹뷰다. 렌더만 되면 된다.
 jest.mock('@granite-js/native/react-native-webview', () => {
@@ -71,12 +54,14 @@ jest.mock('@granite-js/native/react-native-webview', () => {
 jest.mock('@apps-in-toss/native-modules', () => ({
   setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
   generateHapticFeedback: jest.fn(),
+  /* 저장소는 토스 것을 쓴다. 미니앱을 껐다 켜도 남아야 하는 자리라 AsyncStorage로는 안 된다. */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Storage: require('../../commons/test-support/storageMock').Storage,
 }));
 
 beforeEach(() => {
   // 저장소도 자료도 파일 안에서 공유된다. 테스트마다 초기 상태에서 시작한다.
-  const store = (globalThis as Record<string, unknown>).__sbcStore as Map<string, string> | undefined;
-  store?.clear();
+  resetStorage();
   resetMaterial();
   // 제스처 대역도 트리 밖에 산다. 안 비우면 앞 테스트의 스와이프 영역이 남는다.
   resetGestureMock();
