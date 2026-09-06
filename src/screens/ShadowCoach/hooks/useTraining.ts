@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { useKeepAwake, useLatestRef, useTimerBank } from '../../../commons/hooks';
 import type { CoachVoice } from '../../../commons/components';
 import type { Combo, Phase, Settings } from '../../../commons/types';
@@ -113,6 +114,13 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
     setClock(0);
   }, [clearAll, cueRef, setClock]);
 
+  const pause = useCallback(() => {
+    setPaused(true);
+    // 아직 안 터진 구간 넘김 예약까지 걷어내야 멈춘 뒤에 호출이 튀어나오지 않는다.
+    clearAll();
+    cueRef.current.silence();
+  }, [clearAll, cueRef]);
+
   const togglePause = useCallback(() => {
     if (phase === 'idle' || phase === 'done') return;
     if (paused) {
@@ -124,12 +132,9 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
         cueRef.current.resume(timeRef.current * 1000);
       }
     } else {
-      setPaused(true);
-      // 아직 안 터진 구간 넘김 예약까지 걷어내야 멈춘 뒤에 호출이 튀어나오지 않는다.
-      clearAll();
-      cueRef.current.silence();
+      pause();
     }
-  }, [phase, paused, clearAll, cueRef]);
+  }, [phase, paused, clearAll, cueRef, pause]);
 
   const skip = useCallback(() => {
     if (phase !== 'work' || paused || stRef.current.mode === 'none') return;
@@ -141,6 +146,27 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
 
   // 콤보 목록이 바뀌면 시작 실패 안내는 더 이상 맞지 않는다.
   useEffect(() => setStartError(''), [combos]);
+
+  /*
+   * 앱을 나가면 멈춘다.
+   *
+   * iOS는 백그라운드에서 JS를 세운다. 나오던 말 한 마디까지만 나오고 시계도 선다 —
+   * 미니앱이라 오디오 백그라운드 모드를 우리가 선언할 수 없어서 이어갈 방법이 없다.
+   * 그냥 두면 돌아왔을 때 라운드가 나가 있던 만큼 밀려 있고, 밀린 예약이 한꺼번에 터진다.
+   *
+   * 그래서 나가는 순간 멈추고, 되살리는 건 사람이 정하게 둔다.
+   * 안드로이드도 같이 멈춘다 — 한쪽만 다르게 굴면 무엇이 정상인지 알 수 없다.
+   */
+  const liveRef = useLatestRef({ running, paused });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      // inactive는 알림 배너나 제어 센터처럼 스쳐 가는 것도 포함한다. 그걸로 멈추면 안 된다.
+      if (next !== 'background') return;
+      const live = liveRef.current;
+      if (live.running && !live.paused) pause();
+    });
+    return () => sub.remove();
+  }, [pause, liveRef]);
 
   /* ---- 시계 ---- */
 

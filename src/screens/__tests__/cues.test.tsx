@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import { generateHapticFeedback, setScreenAwakeMode } from '@apps-in-toss/native-modules';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
@@ -136,5 +137,73 @@ describe('벨·클래퍼 — 소리가 안 나는 기기에서도 몸으로 안�
     fireEvent.press(screen.getByLabelText('정지'));
     await act(async () => {});
     expect(awake).toHaveBeenCalledWith({ enabled: false });
+  });
+});
+
+/*
+ * iOS는 백그라운드에서 JS를 세운다. 나오던 말 한 마디까지만 나오고 시계도 선다 —
+ * 미니앱이라 오디오 백그라운드 모드를 우리가 선언할 수 없어 이어갈 방법이 없다.
+ * 그냥 두면 돌아왔을 때 라운드가 밀려 있고 밀린 호출이 한꺼번에 터진다. 그래서 나가면 멈춘다.
+ */
+describe('백그라운드 — 나가면 멈추고, 재개는 사람이 정한다', () => {
+  const listeners: ((state: AppStateStatus) => void)[] = [];
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    listeners.length = 0;
+    jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((_type, handler: (state: AppStateStatus) => void) => {
+        listeners.push(handler);
+        return { remove: () => undefined } as ReturnType<typeof AppState.addEventListener>;
+      });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  const goto = (state: AppStateStatus) => act(() => listeners.forEach((h) => h(state)));
+
+  const startTraining = async () => {
+    render(
+      <Layout>
+        <ShadowCoach />
+      </Layout>
+    );
+    await act(async () => {});
+    fireEvent.press(screen.getByText('시작'));
+    await act(async () => {});
+  };
+
+  it('나가면 멈추고, 돌아와도 저절로 이어지지 않는다', async () => {
+    await startTraining();
+    expect(screen.getByText('일시정지')).toBeTruthy();
+
+    goto('background');
+    expect(screen.getByText('재개')).toBeTruthy();
+
+    // 돌아오는 것만으로 다시 돌면 주머니 속에서 훈련이 이어진다
+    goto('active');
+    expect(screen.getByText('재개')).toBeTruthy();
+  });
+
+  it('알림 배너처럼 스쳐 가는 inactive로는 안 멈춘다', async () => {
+    await startTraining();
+    goto('inactive');
+    expect(screen.getByText('일시정지')).toBeTruthy();
+  });
+
+  it('멈춘 동안에는 시계가 안 간다', async () => {
+    await startTraining();
+    const before = screen.getByText('0:05');
+    expect(before).toBeTruthy();
+
+    goto('background');
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+
+    expect(screen.getByText('0:05')).toBeTruthy();
   });
 });
