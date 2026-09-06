@@ -173,6 +173,8 @@ export function WordsView({
         <SwipeArea
           onRight={swipe.prev}
           onLeft={swipe.next}
+          canRight={swipe.hasPrev}
+          canLeft={swipe.hasNext}
           onLayout={(e) => {
             listTopRef.current = e.nativeEvent.layout.y;
           }}

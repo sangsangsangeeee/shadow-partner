@@ -28,5 +28,10 @@ export function useAdjacentStep<T>(options: readonly T[], value: T, onChange: (n
   const prev = useCallback(() => step(-1), [step]);
   const next = useCallback(() => step(1), [step]);
 
-  return useMemo(() => ({ prev, next }), [prev, next]);
+  /* 끌리는 쪽에 갈 곳이 있는지는 쓰는 쪽이 손에 알려줘야 해서 같이 내보낸다. */
+  const at = options.indexOf(value);
+  const hasPrev = at > 0;
+  const hasNext = at >= 0 && at < options.length - 1;
+
+  return useMemo(() => ({ prev, next, hasPrev, hasNext }), [prev, next, hasPrev, hasNext]);
 }

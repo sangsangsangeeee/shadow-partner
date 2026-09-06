@@ -43,6 +43,7 @@ function makePan() {
     activateAfterLongPress: () => pan,
     runOnJS: () => pan,
     onUpdate: () => pan,
+    onBegin: () => pan,
     onFinalize: () => pan,
     onStart: () => pan,
     onEnd: (fn: PanEnd) => {

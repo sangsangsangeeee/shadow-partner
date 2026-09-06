@@ -75,7 +75,13 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
         </ScrollView>
 
         {/* 격자만 감싼다. 위 칩 트레이에는 지우는 터치가 있어 얽히면 안 된다. */}
-        <SwipeArea onRight={swipe.prev} onLeft={swipe.next} style={styles.grid}>
+        <SwipeArea
+          onRight={swipe.prev}
+          onLeft={swipe.next}
+          canRight={swipe.hasPrev}
+          canLeft={swipe.hasNext}
+          style={styles.grid}
+        >
           {list.map((m) => (
             <Tap key={m.id} onPress={() => onPick(m.id)} style={styles.cell}>
               <Typo level="small" color={C.z200} style={styles.cellText}>{label(m.id)}</Typo>
