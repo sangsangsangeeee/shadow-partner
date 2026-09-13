@@ -1,6 +1,6 @@
 # 무엇을 어느 층에서 확인하는가
 
-97개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
+131개 / 10묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
 5초 제한에 걸린다. 회귀가 아니라 부하 문제다.
 
 ## 층
@@ -8,8 +8,11 @@
 | 묶음 | 무엇 | 렌더 |
 |---|---|---|
 | `commons/utils/__tests__/parser.test.ts` | 콤보 파서 | 안 함 |
+| `commons/utils/__tests__/steps.test.ts` | 콤보 박자 — 리듬이 동작 길이를 이기는가 | 안 함 |
 | `commons/components/__tests__/ring.test.ts` | 링 기하 | 안 함 |
 | `ShadowCoach/hooks/__tests__/materialReducer.test.ts` | 리듀서 전이 | 안 함 |
+| `ShadowCoach/hooks/__tests__/persist.test.ts` | 쓰기를 미루는 창 | 안 함 |
+| `commons/constants/__tests__/layout.test.ts` | 기획서가 정한 치수 | 안 함 |
 | `screens/__tests__/screen.test.tsx` | 탭·편집·되돌리기 | 화면 |
 | `screens/__tests__/cues.test.tsx` | 호출어 타이밍 | 화면 |
 | `screens/__tests__/flows.test.tsx` | 긴 흐름, 저장소까지 | 화면 |
