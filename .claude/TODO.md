@@ -1,527 +1,299 @@
 # 남은 일
 
 우선순위를 정하는 축은 하나다 — **실기기를 몇 번 보게 되느냐.**
-그래서 보이는 걸 바꾸는 일은 전체 실물 점검 *앞에* 몰아서 끝낸다.
+그래서 보이는 걸 바꾸는 일은 실물 점검 *앞에* 몰아서 끝낸다.
 
 ## 내일 여기서 시작한다 (2026-09-13 마감 기준)
 
-**브랜치는 `feat/shadow-coach` 그대로. 기획서가 v2다. 코드는 아직 v1 + 녹음(`d85893d`)이다.**
+**브랜치 `feat/shadow-coach`. 마지막 커밋은 이 문서 커밋. 작업 트리 깨끗.**
+관문 전부 초록 — `tsc` 0 · `eslint` 0 · `jest` 162/162 (11묶음) · `ait build` 0/0 양쪽 RN. 이 숫자는 지우기 뒤에 크게 줄어든다.
 
-무슨 일이 있었나: 두드리기+녹음(A)을 기기에서 써 보고 사용자가 판을 뒤집었다 — **TTS 전부 제거, 목소리·말 속도 설정 제거,
-두드리기 UI 제거, 호출어 탭 제거, 콤보는 녹음 + 이름.** 여덟 가지 결정을 받아 기획서 v2로 다시 썼다:
-마이크 없으면 시작 때 알림 · 템포 = 재생 속도 0.8~1.3 · **이름 필수** · 옛 콤보(녹음 없음)는 버림 · 녹음 8초 상한 ·
-앞뒤 침묵은 소리로 잘라냄 · 훈련 화면은 이름 + 막대 하나 · 카드는 듣기·이름 고치기·다시 녹음·삭제.
+**[기획서](../docs/shadow-partner-spce.md)는 v2, 코드는 아직 v1 + 녹음이다.** 무슨 일이 있었나:
 
-**다음: 코드를 v2로. 셋으로 나눠 커밋한다 — 지우기가 먼저다.**
+1. TTS가 두드린 리듬을 못 따라갔다(말 하나 읽는 시간이 하한). 사용자가 녹음을 냈고, 토스 모듈엔 마이크가 없어
+   숨은 WebView의 `getUserMedia`로 스파이크했더니 **iOS에서 됐다**(AAC 2초 50KB). `d85893d`가 두드리기+녹음(A)이다.
+2. 기기에서 써 본 사용자가 판을 뒤집었다 — **TTS 전부 제거, 목소리·말 속도 설정 제거, 두드리기 제거, 호출어 탭 제거,
+   콤보 = 녹음 + 이름.** 여덟 결정: 마이크 없으면 시작 때 알림 · 템포 = 재생 속도 0.8~1.3 · **이름 필수** ·
+   옛 콤보 버림 · 8초 상한 · 앞뒤 침묵은 소리로 · 훈련 화면은 이름 + 막대 · 카드는 듣기·이름·다시 녹음·삭제.
+3. 기획서를 v2로 다시 썼다(570 → 430줄). 6·7장(파서·리듬)과 4.5·4.6(고르기·호출어)이 나갔고 11장에 이유가 있다.
 
-1. **지우기 커밋.** 나가는 것: `parser.ts`(+테스트 32) · `moves.ts`의 동작·별칭·번호(남기는 건 MODES·CUES·DEFAULTS·STORAGE_KEYS →
-   `constants/training.ts`로 이름을 바꾼다) · `naming.ts`의 label/beat/comboSteps(clipPlan만 남긴다) · `rhythm.ts` ·
-   `WordsView` `WordRow` `AddMoveSheet` `MovePickerSheet` `SlotRow` · `TapStage`의 두드림 · `Material`의 labels/customMoves/beats/undo removeMove ·
-   `Combo.moves/rhythm` · `Settings.rate/voiceURI` · `VoiceEngine`의 speak/voices · `MaterialContext`의 label/beatOf/alias ·
-   설정 시트의 목소리·말 속도·소리 테스트 · `DoneOverlay`의 동작 수 · 관련 테스트 전부. **TODO.md의 v1 절(C절 결정표, 스와이프 절, 1번 TDS 절의 WordRow 언급)도 이때 정리.**
-   `tsc`가 잡아 주는 대로 따라가면 된다. 이 커밋만으로 `jest`가 초록이어야 한다.
-2. **녹음 무대 · 이름 · 카드 커밋.** `comboDraft`를 녹음 초안으로 다시(idle → recording → named). 8초 자동 완료(엔진 타이머).
-   엔진이 풀 때 첫 소리·마지막 소리(`head`/`tail`)를 재서 넘긴다 — RMS 임계로. 이름 입력 포커스 + 저장 FAB이 키보드 따라 올라감.
-   카드: 이름 + 길이, `⋯` 듣기·이름 고치기(한 줄 편집)·다시 녹음·삭제. 빈 목록 안내. 시작 때 마이크 알림(TDS `Dialog` — 색 안 얹어도 되는 자리).
-   hydrate: 녹음 없는 콤보 버림, `sbc:labels/moves/beats` 지움.
-3. **훈련 화면 커밋.** 칩·비트 트랙 → 이름 + 막대 하나(`FillBar` 재생 길이). `useCallouts`는 clip만 튼다. 통계에서 동작 수 제거.
-   템포 슬라이더 0.8~1.3. `소리 테스트` → `벨 테스트`.
-4. 기기 확인 — TODO 10장 시나리오 + 저장소 20개 + 템포 음정.
-
-**모양 커밋(무대 살짝 움직임)은 v2 무대가 선 뒤에.** D(색)는 여전히 열려 있다 — 화면이 둘로 줄었으니 그때 한 번에.
-B(초기 데이터)는 닫혔다: 초기 콤보 없음, 첫 실행은 빈 목록. A(스플래쉬)는 그대로 열려 있다.
+**막고 있는 질문: 없다.** 안드로이드 미확인은 보류(기획서 9장). 아래 순서대로 가면 된다 — **1번은 지우기다. 만들기 전에 지운다.**
 
 ---
 
-마지막 갱신: **전체 실기기 점검이 전부 통과했다.** 거기서 넷이 나왔고 넷 다 고치고 다시 확인했다.
-브랜치 `feat/shadow-coach`, main 미병합 — 다음 판도 이 브랜치에서 한다.
+## 1. 지우기 커밋 — 파서·동작·호출어·두드리기·TTS를 걷는다
 
-## 앞으로 할 일 — 이 순서다
+**목표: 이 커밋 하나로 `jest`가 초록이고, 앱이 "녹음만 되는 v2 뼈대"로 선다.** 새 기능은 안 만든다. 빈 자리는 비워 둔다.
+`tsc`가 길을 안내한다 — 아래 순서로 지우면 오류가 위에서 아래로 흘러간다.
 
-**전체 실기기 점검이 2026-09-06에 전부 통과했다. 지금 브랜치는 끝났다.**
+### 1-1. 자료형 (`commons/types.ts`)
 
-1. **다음 판 — 새로 들어온 일 넷 (A~D).** 아래 절에 따로 적었다
-2. **main 병합.** `preview.tsx`는 지웠다(3-3 완료).
-   **미루기로 했다** — 새 판을 같은 브랜치에서 이어서 한다.
-   대신 검증이 끝난 지점이 `928ea6f`(preview 삭제)라는 것을 기억해 둬라.
-   새 작업이 깨졌을 때 돌아갈 곳이 거기다
-3. 그 뒤에 남는 건 취향의 문제뿐이다 — `Segmented` 글자 1px, 3번의 구조 정리 둘
+```ts
+Combo    { id; name: string; on; ms: number; head: number; tail: number }   // rhythm·moves·clip 제거
+Clips    그대로
+Material { combos; settings; clips }                                        // labels·customMoves·beats 제거
+Settings rate·voiceURI 제거
+삭제: Move · Kind · Labels · Beats · AliasMap · ClipMeta · VoiceOption · Stats.moves (Stats는 { combos }만)
+```
 
-점검에서 넷이 나왔고 넷 다 고치고 다시 확인했다 —
-토스트가 두 번째부터 안 접히던 것, 슬라이더가 손가락을 못 따라가던 것,
-앱을 나가면 훈련이 조용히 멈추던 것, **저장소가 통째로 날아가던 것.**
+`head`/`tail`은 초. 지우기 단계에서는 값이 안 들어온다 — 2번에서 엔진이 잰다. 지금은 `head: 0, tail: ms/1000`으로 두는 자리를 남긴다.
 
----
+### 1-2. 상수
 
-## 다음 판 — 새로 들어온 일 (2026-09-06 접수)
+- `constants/moves.ts` → **`constants/training.ts`로 이름을 바꾼다.** 남는 것: `MODES` `CUES` `DEFAULTS`(rate·voiceURI 빼고, tempo는 1.0 그대로) `STORAGE_KEYS`(combos·settings·clip).
+  나가는 것: `BASE_MOVES` `KIND_LABEL` `KINDS` `BEAT_OPTIONS` `NUM_WORDS` `COMBO_MAX_MOVES`.
+- **`LEGACY_KEYS = ['sbc:labels', 'sbc:moves', 'sbc:beats']`**를 같이 둔다. hydrate가 지운다(1-5).
+- `constants/layout.ts` — `CHIP_TRAY_H` 삭제. `layout.test.ts`의 그 케이스도.
+- `constants/typography.ts` — `COMBO_SIZE`는 남는다(카드·이름 입력 글자). `DISPLAY.done`도.
+- 배럴 `constants/index.ts` 갱신.
 
-**넷 다 기획이 먼저다.** 특히 C와 D는 지금 기획서와 정면으로 어긋나므로,
-**코드보다 [기획서](../docs/shadow-partner-spce.md)를 먼저 고쳐야 한다** — 어긋나면 기획서가 이긴다.
+### 1-3. commons/utils
 
-순서를 정하는 축이 하나 더 늘었다. **D(색)를 먼저 하면 A·C를 그 색으로 한 번에 만든다.**
-D를 나중에 하면 A와 C를 두 번 손대게 된다.
+- **삭제**: `parser.ts`(167줄) + `__tests__/parser.test.ts`(32개), `rhythm.ts`.
+- `naming.ts` → **`play.ts`로.** `moveIndex` `resolveName` `resolveBeat` `comboSteps` 삭제. `clipPlan`만 남기되 **서명이 바뀐다**:
+  `clipPlan(combo, tempo) → { from, duration, total }` — `head−0.15`에서 `min(ms/1000, tail+0.3)`까지, 템포로 나눈다. `marks`는 없다(칩이 없다).
+  `CLIP_LEAD = 0.15`, `CLIP_TAIL = 0.3`.
+- `__tests__/steps.test.ts` → `play.test.ts`. `comboSteps` 5개 나가고 `clipPlan` 3개를 새 서명으로 다시.
+- `storage.ts` 그대로(`removeJSON` 남는다).
 
-### A. 스플래쉬 화면
+### 1-4. 소리 엔진 (`commons/components/VoiceEngine.tsx`)
 
-- [ ] 무엇을 보여줄지 정한다 — 로고? 앱 이름? 준비 중 표시?
-- [ ] 토스가 주는 자리가 있는지 먼저 본다. `granite.config.ts`의 `appsInToss({ brand })`에
-      `displayName`·`primaryColor`·`icon`이 있고 **`icon`은 지금 비어 있다.**
-      **번들 안에서 그리는 화면보다 호스트가 먼저 그리는 자리가 있다면 그쪽이 맞다** —
-      우리 화면은 JS가 다 올라온 뒤에야 나오므로 그전의 빈 시간을 못 덮는다.
-- [ ] 우리 쪽에서 그린다면 어디에 두는가 — 라우트는 `/` 하나뿐이다.
-      화면 안의 한 단계(`loaded`가 false인 동안)로 넣는 편이 라우트를 새로 파는 것보다 싸다.
-      자료를 다 읽었는지는 `useMaterial`의 `loaded`가 이미 안다.
+- 나가는 것: `speak`, `hush`(→ `stop`으로 이름 바꾼다 — 녹음 재생을 끊는 것이 남는다), `voices` 상태와 `reportVoices`, `speechSynthesis` 관련 JS 전부, `Command`의 `'speak'`.
+- 남는 것: `prime` `bell` `clapper` `blip` `tick` `tone`, 녹음 다섯(`recordStart/Stop` `loadClip/dropClip/playClip`), `recordEvent`, `baseUrl: 'https://localhost'`.
+- `CoachVoice` 타입 정리. **`tick`은 두드림용이었다 — 무대 누를 때 한 번 쓰는 걸로 남긴다**(녹음 시작을 손으로 안다).
 
-**주의** — 기획서 2장 원칙 6. 스플래쉬가 자료 읽기를 기다리다 실패하면 앱이 거기서 멈춘다.
-**타이머로 강제로 걷어내는 안전장치 없이 만들지 마라.**
+### 1-5. 자료 (`hooks/useMaterial.ts`)
 
-### B. 초기 데이터 변경
+- 액션 삭제: `addMove` `renameMove` `setLabel` `setBeat` `resetMove` `applyNumberLabels` `resetBaseMoves` `removeMove`.
+- `addCombo { name, clip: NewClip }` · `replaceCombo { id, name?, clip?: NewClip | null }` — `moves`·`rhythm` 없음. **이름만 고치면 `clip` undefined.**
+- `INITIAL_COMBOS` 삭제. `INITIAL.combos = []`.
+- `removeCombo`의 되돌리기 문구: `${name} 지웠어`.
+- **hydrate**: `combos`를 읽은 뒤 **`ms`가 없는 콤보(v1 것)는 버린다.** 남은 콤보의 본체를 `sbc:clip:<id>`에서 읽는다.
+  `labels/moves/beats`는 읽지 않고 **`LEGACY_KEYS`를 `removeJSON`으로 지운다.** 한 번만 — 없으면 아무 일도 없다.
+  옛 콤보의 `moves`/`rhythm`/`clip` 필드는 그냥 버려진다(새 형에 없다).
+- `persist`에서 labels·moves·beats 줄 삭제.
+- 테스트: `materialReducer.test.ts`의 `removeMove` 절과 `base()`의 labels·customMoves·beats 삭제. 녹음 절은 새 액션 서명으로. `persist.test.ts`의 "조각은 서로를 끌고 가지 않는다"에서 labels/moves/beats 언급 정리. **hydrate가 옛 콤보와 옛 키를 버리는 테스트를 새로**(persist에, `Storage.getItem`을 흉내내서).
 
-지금 값: [useMaterial.ts:33](../src/screens/ShadowCoach/hooks/useMaterial.ts#L33)의 `INITIAL_COMBOS` 넷
-(`잽-크로스-로우킥` / `잽-잽-크로스-레프트훅` / `잽-미들킥` / `잽-크로스-슬립-크로스`),
-그리고 [moves.ts](../src/commons/constants/moves.ts)의 `BASE_MOVES`와 `DEFAULTS`.
+### 1-6. 화면 자료 (`MaterialContext.tsx`)
 
-- [ ] 무엇을 어떻게 바꿀지 정한다 (콤보 목록? 기본 동작? 기본 설정값?)
-- [ ] **이미 쓰고 있는 사람의 자료는 안 바뀐다.** 초기값은 저장소가 빈 첫 실행에만 쓰인다.
-      바꾼 값을 기존 사용자에게도 주려면 그건 초기값이 아니라 **마이그레이션**이고 별개의 일이다.
-- [ ] `BASE_MOVES`의 id를 바꾸면 저장된 `labels`·`beats`·`combos`가 그 id를 가리키고 있다.
-      **id는 자료의 열쇠다. 이름만 바꾸는 것과 id를 바꾸는 것은 전혀 다른 일이다.**
+`moveMap` `alias` `allMoves` `label` `beatOf` 전부 삭제. 남는 건 `useMaterial()` 결과를 한 번만 읽어 내리는 것뿐 — 그래도 프로바이더는 둔다(트리 밖 자료를 화면 안에서 한 번 읽는 자리).
 
-### C. 콤보 추가 — 기획 변경에 따른 대규모 변경
+### 1-7. 훅
 
-**2026-09-13에 방향이 정해졌다** — 반투명 샌드백 위를 **두드려서 리듬을 만들고**, 컨펌하면 탭 수만큼 슬롯이 생겨
-호출어 탭에 등록된 동작을 하나씩 **매칭**한다. 박자의 주인이 동작에서 콤보로 옮겨간다.
+- `useCallouts` — `moveMap` `beats` `speakMove` 삭제. `playCombo`는 **녹음만** 튼다: `clips[combo.id]`가 없으면 그 콤보를 건너뛰고 `pickNext()`.
+  `comboSteps` 갈래 삭제. `activeIdx` 삭제(칩이 없다). `Stats.moves` 삭제.
+- `useTraining` — **`speak` 매개변수 삭제.** 106줄 `speakRef.current('준비')`와 210줄 `'운동 끝. 수고했어요'`가 TTS다.
+  준비는 비프가, 끝은 벨이 이미 알린다. 그냥 지운다.
+- `comboDraft.ts` — 이 커밋에서는 **통째로 삭제**하지 않고 최소로 깎는다: `slots·cursor·text·unknown·overflow·taps·rhythm·firstTap` 삭제,
+  `type·pick·clear·open` 액션 삭제, `tap` 삭제. 남는 것: `stage: 'idle' | 'recording' | 'named'`, `recording` 다섯 상태, `session`, `recStart`,
+  `clip`, `name`, `editingId`, `hint`, `reRecorded`. 액션: `arm` `recStarted` `recFailed` `recorded` `finish` `cancel` `setName` `edit` `hint` `reset`.
+  **`finish`는 `stage: 'named'`로.** 테스트 21개 중 두드리기·슬롯 절 삭제, 녹음 절은 새 형에 맞춰 남긴다(≈7개).
 
-기획서와 정면으로 부딪히는 셋 — (1) 5·7장 박자 모델 (2) 원칙 3 "적는 마찰이 없다" — 마찰이 는다, 근거를 12장에
-(3) 12장 리듬게임 근거와 같은 뿌리로 **재생 하한**이 필요하다. 두드린 0.2초를 TTS가 못 따라간다.
+### 1-8. 화면 (`index.tsx`, 737줄)
 
-결정 열 개는 제안대로 간다(뒤집으면 여기 고쳐라):
+- 삭제: `wordKind` `wordsEditing` `pickerOpen` `addMoveOpen`, `nameOf` `speak` `speakMove` `labelRef` `moveRef` `customMovesRef` `beatsRef`,
+  `changeWordName/Beat` `resetWord` `previewWord` `deleteMove` `applyNumbers` `resetBaseLabels`, `openPicker/closePicker/openAddMove/closeAddMove/afterAddMove`,
+  `changeDraftText` `pressSlot` `pickMove` `openSlot`, `draftMoves` `dupCombo`, 동작 추가 FAB 층, `MovePickerSheet` `AddMoveSheet`, `WordsView`.
+- `TABS`는 둘. `anySheetOpen = sheetOpen`. `scrollPad`의 `tab === 'words'` 갈래 삭제.
+- `saveCombo`: `stage !== 'named'`면 return → 이름 비었으면 `이름을 적어줘` → 녹음 없으면(마이크 실패로 `clip` null이고 수정도 아니면) `녹음이 없어` → 저장.
+- `canSave = stage === 'named' && name.trim() && (clip || (editingId && !reRecorded))`.
+- `listenDraft`: 녹음 갈래만(TTS·blip 갈래 삭제).
+- `previewCombo`: 녹음 갈래만.
+- `editor`: `onTap`(=arm) `onFinish` `onCancel` `onRetap` `onListen` `onNameChange`.
+- 설정 시트 `onTestSound` → `onTestBell`(`voice.bell(1)`).
 
-| # | 결정 |
-|---|---|
-| 1 | 동작 길이(`Move.beat`)는 남긴다 — 마지막 동작·기존 콤보·리듬 없는 콤보의 폴백 |
-| 2 | 마지막 동작의 길이는 그 동작의 `beat` |
-| 3 | 두드린 간격은 양자화도 하한도 **안 건다.** 하한은 말 속도가 정한다는 게 스파이크 결과다(기획서 7장) |
-| 4 | 자유 입력(파서)은 **슬롯 채우기의 한 줄 입력**으로 남긴다 — 두드린 뒤 `잽잽투로우킥`을 치면 순서대로 들어간다 |
-| 5 | 시작은 무대 첫 터치, 끝은 **명시적 완료 버튼** |
-| 6 | 저장 전 듣기 한 단추 — 채운 슬롯은 지금 말 속도의 실제 목소리, 빈 슬롯은 클릭음(`tone`의 `delay`). 두드릴 때 햅틱 |
-| 7 | 무대는 콤보 탭 상단 고정 높이, 아래에 카드 목록. 시트는 끌어서 닫기와 손이 싸운다 |
-| 8 | 중복은 동작 순서만 본다(지금 규칙) |
-| 9 | 동작 바꾸기와 리듬 다시 두드리기는 따로 |
-| 10 | 비트 트랙은 콤보 간격 비례 — 이미 `comboSteps`가 그렇게 그린다 |
+### 1-9. 뷰·부품
 
-**구조와 녹음이 들어갔다** (맨 위 인계 참고). 다음은 기기 확인, 그다음 모양 커밋이다.
+- **삭제**: `views/WordsView.tsx`(229) · `parts/WordRow.tsx`(187) · `parts/AddMoveSheet.tsx`(115) · `parts/MovePickerSheet.tsx`(122) · `parts/SlotRow.tsx`(42).
+- `parts/TapStage.tsx` → **`RecordStage.tsx`**. 두드림·`count`·`nativeEvent.timestamp` 삭제. 이 커밋에서는 `눌러서 녹음` / 녹음 중(`● 말해`·취소·완료) / 마이크 줄만. 경과 초는 2번.
+- `views/CombosView.tsx` — 슬롯 줄·한 줄 입력·넘침·미인식·중복 상자·도움말 삭제. `named` 단계에 `녹음 n초`·듣기·다시 녹음·취소·**이름 `TextInput`**(`Field` 재사용, `autoFocus`). 빈 목록 안내 `눌러서 첫 콤보를 녹음해`.
+  `DraftEditor` 정리. 카드 목록·전체 선택·되돌리기는 그대로.
+- `parts/ComboCard.tsx` — `moves.map(label)` 대신 `name` + `${(ms/1000).toFixed(1)}초`. `label` prop 삭제. 메뉴: 듣기·이름 고치기·다시 녹음·삭제(다시 녹음 wiring은 2번, 여기선 `onRerecord` prop만).
+- `views/TrainView.tsx` — 동작 칩 줄·비트 트랙·`moveMap`·`label`·`beatOf`·`activeIdx` 삭제. `activeCombo`가 있으면 **이름 + `FillBar`(ms = clipPlan total)**. 316줄이 꽤 준다 — 3-2(쪼개기)는 완전히 죽는다.
+- `parts/SettingsSheet.tsx` — 목소리 `Segmented`(voices)·말 속도 `Slider` 삭제. `소리 테스트` → `벨 테스트`. 템포 슬라이더 `min 0.8 max 1.3 step 0.05`.
+- `parts/DoneOverlay.tsx` — 동작 수 행 삭제(통계 4행 → 3행. 기획서 4.3).
 
-원래 적혀 있던 것:
+### 1-10. 죽은 공용 조각 — 쓰는 곳이 없어지면 내린다(architecture.md "쓰는 곳이 줄면 도로 내려라")
 
-- [ ] **새 기획을 기획서 4.4·4.5에 먼저 쓴다.** 그다음에 코드를 연다
-- [ ] 지금 걸려 있는 것 — [CombosView](../src/screens/ShadowCoach/views/CombosView.tsx) 291줄 ·
-      [MovePickerSheet](../src/screens/ShadowCoach/parts/MovePickerSheet.tsx) 131줄 ·
-      [AddMoveSheet](../src/screens/ShadowCoach/parts/AddMoveSheet.tsx) 115줄 ·
-      [parser.ts](../src/commons/utils/parser.ts) 167줄, 그리고 파서 테스트 28가지 입력 형식
-- [ ] 파서를 걷어내는 기획이면 **테스트도 같이 없어진다.** 지금 162개 중 32개가 통째로 그것이다.
-      없어지는 것이 맞는지 기획서에 근거를 남기고 지워라
+| 조각 | 쓰던 곳 | 처분 |
+|---|---|---|
+| `SwipeArea` `useAdjacentStep` `test-support/gestureMock` | 호출어 탭·고르기 시트 | **삭제.** 테스트 상단의 `gesture-handler` mock 줄과 `resetGestureMock` 호출도 |
+| `useSheetHeight` | 고르기·동작 추가 시트 | **삭제**(설정 시트는 키를 고정하지 않는다 — 확인하고) |
+| `Segmented` | 설정 시트 모드 | 남는다 |
+| `Stepper` `Slider` `Field` | 설정 시트 · 이름 입력 | 남는다. `Field`는 이름 입력에 쓴다 |
+| `Icons.tsx`의 `LayoutGrid` `Megaphone` `Pencil` | 고르기·호출어 탭·편집 | 쓰는 곳 없으면 삭제 |
+| `useExpiringState` | 카드 강조(`reveal`) | `reveal`이 중복 안내에서 왔다 — 중복이 없어지면 **강조도 죽는다.** `highlight`·`reveal`·`lit`·`measureCard` 삭제, 훅도 |
 
-**대규모라면 더더욱 [architecture.md](rules/architecture.md)의 "자를지 말지"를 따르라** —
-줄 수가 아니라 재고 나서 자른다. 그리고 **구조를 옮기는 커밋과 모양을 바꾸는 커밋을 섞지 마라.**
+### 1-11. 테스트 — 예상
 
-### D. 메인 컬러 변경
+| 묶음 | 지금 | 지운 뒤 |
+|---|---|---|
+| `parser.test` | 32 | **0 (파일 삭제)** |
+| `comboDraft.test` | 21 | ≈7 (녹음 절) |
+| `steps.test` → `play.test` | 8 | 3 |
+| `screen.test` | 30 | ≈10 — nav(탭 둘)·훈련 화면·엔진 absolute·undo 넷·settings·시작 죽은 버튼. fabshow·fab·slot·dup·picker·words 절 삭제 |
+| `flows.test` | 9 | ≈3 — gap·done·저장소(이름+녹음으로 다시). reveal·addmove·moveundo·beats 삭제 |
+| `memo.test` | 4 | 2 — WordRow 둘 삭제, ComboCard·slider 남음 |
+| `materialReducer.test` | 14 | ≈5 — removeMove 절 삭제, 녹음 절 새 서명 |
+| `persist.test` | 11 | ≈11 — 조각 이름 정리 + hydrate 정리 테스트 추가 |
+| `cues` `ring` `layout` | 8·23·2 | 8·23·1 |
 
-**접수된 말 그대로** — "디자인들이 너무 동적이며 입체감이 없음".
+**≈70개.** 화면 테스트의 `tapCombo` 헬퍼는 `recordCombo(name)`이 된다 — 무대 `pressIn` → `완료` → 이름 `changeText` → `콤보 저장`.
+마이크는 대역에서 영영 안 켜지므로 **`clip`이 null인 채 저장이 막힌다**(`녹음이 없어`). 저장까지 가는 화면 테스트는
+`voice.recordEvent`를 흉내낼 수 없으니, **`dispatchMaterial({type:'addCombo', name, clip})`으로 콤보를 심고** 목록·삭제·되돌리기·훈련을 본다.
+`screen.test`의 `setup()`이 이미 그렇게 할 수 있다(`SEED` 자리).
 
-- [ ] **"너무 동적"이 무엇을 가리키는지 먼저 물어라.** 색 이야기와 같이 왔는데 색은 정적인 것이라
-      말이 안 맞는다. 움직임(애니메이션)이 많다는 뜻인지, 산만하다는 뜻인지,
-      아니면 다른 것을 가리킨 것인지에 따라 손댈 곳이 팔레트가 아닐 수 있다.
+### 1-12. 마무리
 
-지금: 블랙 + 딥틸(`ACCENT` = `#076565`) 두 갈래에 회색 계열.
-**기획서 2장이 이 셋을 직접 정했다.** 바꾸려면 거기부터다.
-
-- [ ] **기획서 2장 "색상"을 먼저 고친다.** 지금은 `#006064` 한 색으로 못 박혀 있다
-- [ ] [colors.ts](../src/commons/constants/colors.ts) — `ACCENT`와 `C.*` 전부 TDS 토큰에서 온다.
-      **16진수를 직접 쓰지 마라**([design-system.md](rules/design-system.md)). 새 색도 토큰에서 고른다
-- [ ] `index.tsx`의 `TDSProvider token={{ color: { primary: ACCENT } }}` —
-      **TDS `Button`이 이 값 하나로 따라온다.** 액센트를 바꾸면 버튼도 같이 바뀐다
-- [ ] `ACCENT`는 검정 위에서 어두워 **본문 텍스트에 안 쓴다**는 제약이 지금 팔레트에 걸려 있다.
-      더 밝은 색으로 가면 그 제약이 풀리고, 대신 흰 글자를 얹던 자리(체크박스·강조 링)의 대비를 다시 봐야 한다
-- [ ] **adaptive 토큰은 여전히 안 된다.** 검정 바탕 고정이라 다크에서 뒤집힌다
-
-**입체감은 색만으로는 안 나온다.** 그림자·층 분리·테두리 대비가 같이 움직여야 하는데,
-지금 `C.sheet`·`C.card`·`C.line`이 #101013 / #17171c / #202027로 서로 아주 가깝다.
-**색을 바꾸기 전에 "무엇이 평평해 보이는가"를 먼저 짚어라** — 카드인지, 시트인지, 버튼인지.
-그 답에 따라 손댈 곳이 팔레트가 아니라 층 구조일 수도 있다.
-
-**기획서 12장에 "화면을 응시하게 만들지 않는다"가 있다.** 원칙 1과 부딪히는 제안이면
-기획서를 고치고 시작해라 — 이 앱은 화면을 안 봐도 훈련이 되는 것이 첫 번째다.
-
----
-
-## 하위 화면을 바텀시트로 — **2026-09-06 기기 확인 완료**
-
-풀모달이 토스 상태바까지 덮는 문제에서 시작했다. 처음엔 라우트로 풀었는데(`/add-move`),
-**TDS 바텀시트가 같은 문제를 값 없이 푼다**는 걸 알고 라우트를 도로 걷어냈다.
-`BottomSheetRoot`는 `Modal`이 아니라 앱 트리 안의 `position:absolute` 뷰라 토스 헤더를 안 덮는다.
-
-한 일:
-
-- [x] 동작 추가: `/add-move` 라우트 → `AddMoveSheet`. 라우트 3파일과 `screens/AddMove/` 삭제
-- [x] 동작 고르기: 풀모달 `MovePickerOverlay` → `MovePickerSheet`
-- [x] 훈련 완료만 전체 화면으로 남김. `Overlay`에서 `OverlayFrame`·`avoidKeyboard`·`headExtra` 갈래 제거
-- [x] 고아가 된 `PillButton`(46줄)·`frameworkMock` 삭제
-- [x] 시트가 열리면 탭바·FAB를 걷어내도록 `anySheetOpen`으로 묶음 — 셋 중 하나만 봤으면 나머지에서 뚫린다
-- [x] 라우트 왕복이 사라져 "돌아온 뒤 목록 길이를 재서 뭐가 추가됐는지 추측하던" 우회로 제거
-
-**라우트를 파며 고쳤던 것들은 이제 해당 없다** — 전환 중 흰 번쩍임, 자동 포커스 버벅임,
-`goBack` 스택 쌓임, 라우트별 `contentStyle`. 화면을 안 갈아타니 전환 자체가 없다.
-`screenOptions.ts`는 `/` 하나만 쓰지만 남겨 뒀다(새 라우트를 파면 다시 필요하다).
-
-**기기에서 봤다 (2026-09-06). 시트 전환은 통과다** — 헤더를 안 덮고, 키보드가 CTA를 안 가리고,
-탭바·FAB가 안 올라오고, 다시 열어도 지난 입력이 안 남는다. **전제가 지켜졌으니 되돌릴 이유가 없다.**
-
-남은 단계:
-
-- [x] 분류 **스와이프 전환** — 호출어 탭과 동작 고르기 시트 둘 다
-- [x] **끄는 동안 내용이 손가락을 따라간다** — 2026-09-06 기기 확인 완료
-- [ ] `Segmented` 글자 1px 키우기. 여러 화면이 공유해서 같이 움직인다.
-
-### 스와이프에서 확인된 것 — 다시 조사하지 마라
-
-**제스처 충돌 걱정은 근거가 없었다.** TDS 시트의 끌어서 닫기는
-`Gesture.Pan().activateAfterLongPress(200)`이라(`bottom-sheet/DragAnimation.js`)
-즉시 시작하는 스와이프와 시간축에서 갈린다. 붙잡고 끄는 손짓과 쓸어 넘기는 손짓은 다른 동작이다.
-
-`react-native-gesture-handler`는 **새로 깔 필요가 없다.** `@granite-js/native/react-native-gesture-handler`로
-공식 재수출되고 두 RN 버전에 다 있다. `GestureHandlerRootView`도 `TDSProvider`가 안에서
-`flex:1`로 이미 감싼다 — 우리가 루트에 얹을 게 없다.
-
-**TDS `Tabs`(extensions/tab-view)는 쓰지 마라.** 최상위 export라 후보로 보이지만 둘 다 막힌다:
-`TabItem`·`Indicator`가 `useAdaptive()`의 `grey800`/`grey600` 하드코딩이라 액센트를 못 얹고
-(1-2의 `SegmentedControl`과 같은 병), `TabsViewList`는 네이티브 `PagerView`에 `flex:1`이라
-시트 안에서 높이를 못 잡는다. 그래서 `Segmented`를 그대로 두고 스와이프만 얹었다.
-
-### 손가락을 따라가게 만든 것
-
-기기에서 처음 본 결과 **넘어가긴 하는데 쓸 수 있다는 걸 모른다**는 것이었다.
-손짓의 결과만 있고 과정이 없으면 그 손짓이 있는지도 알 수 없다.
-
-- 끄는 동안 `translateX`가 손가락을 그대로 따라간다. 갈 곳이 없는 쪽은 0.25배만 밀린다 —
-  아예 안 움직이면 끝인지 고장인지 구별이 안 된다.
-- 넘길 때 새 내용은 `손이 간 거리 - 폭`에서 들어온다. 옆 것이 처음부터 붙어 있었다면
-  있었을 자리라 손을 떼는 지점에서 끊기지 않는다. 190ms에 제자리로.
-- **분류를 바꾸는 건 손을 떼는 순간에 그대로 한다.** 애니메이션이 끝나기를 기다리지 않는다 —
-  그러면 넘김이 애니메이션 콜백에 매달리고, 테스트도 시계를 돌려야 한다.
-- `useAdjacentStep`이 `hasPrev`/`hasNext`를 같이 내보낸다. 끝인지는 SwipeArea가 손에 알려주는 데만 쓰고,
-  **감기지 않게 막는 건 여전히 `useAdjacentStep`이다.** 진실이 두 벌이 되면 안 된다.
-
-reanimated은 없다(설치 후보도 아니다). RN `Animated` + `useNativeDriver`로 하고
-값은 제스처 콜백에서 `setValue`로 민다.
-
-**기기에서 봤다 (2026-09-06). 통과다** — 따라오는 것이 부드럽고, 세로 스크롤이 안 죽고,
-시트 격자에서 끌어서 닫기와 안 싸운다. 임계 60px과 끝에서 안 감기는 것도 그대로 둔다.
-JS 스레드에서 매 프레임 `setValue`를 하는 방식이 실물에서 버틴다는 뜻이므로,
-**부드러움을 이유로 reanimated을 들이자는 제안은 근거가 없다.**
-
-**키보드·시트 작업과 한 브랜치에서 만났다.** 겹친 자리가 둘이고 둘 다 손으로 합쳤다:
-
-- 호출어 탭에서 분류를 바꿀 때 `revealRef`를 비우는 처리가 `changeKind` 안으로 들어갔다.
-  스와이프로 바꿔도 굴려 갈 대상이 같이 지워져야 한다 — 사라진 줄을 뒤늦게 겨누면 엉뚱한 자리로 간다.
-- 목록의 자리를 재던 `<View onLayout>`이 `SwipeArea`가 세우는 `View`로 바뀌었다.
-  그래서 `SwipeArea`가 `onLayout`을 물려준다. **이 둘은 같이 봐야 한다** —
-  스와이프로 분류를 옮긴 뒤 줄을 펼쳤을 때 제자리로 굴려 가는지.
-
-**루트 `pages/`와 `src/pages/`는 통일할 수 없다.** 플러그인이 스캔 경로(`pages`)와
-출력 경로(`src/router.gen.ts`)를 하드코딩하고 옵션은 `watch` 하나뿐이다.
-새 라우트는 두 파일이 짝이다. 루트 쪽을 **빈 파일로** 먼저 만들면 플러그인이 템플릿을 채운다
-(내용이 있으면 `add`에서 그냥 빠져나간다). 이미 있는 파일은 다시 저장하면 `router.gen.ts`가 갱신된다.
-라우트를 지울 때는 두 파일과 `router.gen.ts`의 해당 줄을 같이 지운다.
+- `workflow.md`의 죽은 스타일 스크립트.
+- `testing.md`: 묶음 표·개수 갱신. `gestureMock`·스와이프 문단 삭제. "아직 실물로만 확인되는 것"에서 TTS 문장 삭제, 녹음 문장 남김.
+- `CLAUDE.md` 지도는 이미 v2다. "지금 어디까지 왔나"의 v1 문단들을 이때 걷는다.
+- 커밋 메시지에 **왜 지우는지**(11장 근거)와 테스트 수 변화.
 
 ---
 
-## 0. 쌓여 있던 실기기 점검 — **2026-09-06 전부 확인. 닫혔다**
+## 2. 녹음 무대·이름·카드 커밋 — 4.4를 완성한다
 
-훈련 화면은 2026-08-22, 나머지는 2026-09-06에 봤다. **여기서 나온 것은 토스트 하나뿐이고 고쳤다.**
+### 2-1. 엔진
 
-- [x] **콤보 카드 터치 범위** — 체크박스 위를 눌러도 켜진다. `pointerEvents="none"`이 안드로이드에서 먹는다
-- [x] **되돌리기 토스트 높이 3종** — FAB 있을 때 / 없을 때 / 키보드 올라왔을 때. 안전영역을 빼고 넘기는 게 맞다
-- [x] **3초 자동 사라짐** — 여기서 깨진 게 잡혔다. 고치고 같은 날 다시 봤다(아래)
-- [x] **스위치 모양 양쪽 기기** — RN 내장 기본 모양으로 괜찮다. TDS로 되돌릴 이유가 없다
-- [x] **시트 완료 버튼 가장자리** — 이중 버튼을 걷어낸 바깥 28px이 눌린다
-- [x] **탭바 내려가는 타이밍** — 시트 스프링과 탭바 220ms 등속이 어긋나 보이지 않는다. 맞추지 않는다
-- [x] **콤보·호출어 탭의 빈 헤더** — 여백 그대로 둔다
+- `recordStart(maxMs)` — **8초 상한.** `recorder.start()` 뒤 `setTimeout(recordStop, maxMs)`. 앱 쪽 `finish`가 먼저 오면 그 타이머는 `recordStop`이 지운다.
+  상한에 닿아 멈춘 것도 같은 `recorded`로 온다 — 앱은 구분할 필요 없다.
+- **`head`·`tail` 측정** — `recorded` 전에 `decode`한 `AudioBuffer`의 `getChannelData(0)`를 10ms 창으로 RMS. 최대 RMS의 **5%**를 처음·마지막으로 넘는 창의 시각(초).
+  소리가 하나도 없으면 `head = 0, tail = duration`. `recorded { data, duration, head, tail }`로 보낸다. 문턱은 기획서 6장에 있다 — 기기에서 조정.
+- 엔진 `ready` 메시지에 **`mic: boolean`**(`navigator.mediaDevices?.getUserMedia && window.MediaRecorder`)을 싣는다. 앱이 시작 알림에 쓴다.
+- `playClip`은 그대로(from·duration·rate).
 
-목소리(TTS)는 2026-08-22 확인 완료. 그 뒤로 `VoiceEngine`은 안 건드렸다.
+### 2-2. 초안 리듀서 (`comboDraft.ts`)
 
-### 토스트가 안 접히던 것 — 기기에서 잡아 고치고 다시 확인했다 (2026-09-06)
+```
+idle ──arm──▶ recording ──finish──▶ named ──(save)──▶ reset
+                 │ cancel               │ retap(=arm, 이름 유지)
+                 ▼                      │ cancel → reset
+               idle                     ▼ recording
+```
 
-**`.d.ts`를 읽고도 두 번 틀렸다. 둘 다 `Toast.js` 본문에만 있는 사실이다.**
+- `recorded { data, duration, head, tail }` — `stopping`에서만 받는다(취소한 녹음 거르기). `clip = { data, duration, head, tail }`.
+- `recStart`·`firstTap`·`offset`은 **없어진다** — 앞을 소리로 자르니 시각을 맞출 필요가 없다.
+- `edit { combo }` — `named`로, `name` 채우고 `clip` null, `reRecorded` false. 카드의 "이름 고치기"와 "다시 녹음" 둘 다 여기로 들어오되
+  다시 녹음은 곧바로 `arm`을 잇는다(`reRecorded` true).
+- `setName { text }`.
+- **경과 초**는 리듀서가 아니라 무대 부품이 `recording === 'on'`인 동안 `setInterval(100ms)`로 센다 — 자료가 아니다.
+- 테스트: 상태 전이 ≈10개. "취소한 뒤 도착한 본체는 버린다"는 그대로 산다.
 
-- `duration`은 **ms가 아니라 초**다(`useTimer`가 `duration * 1000`으로 건다).
-  `TOAST_MS`(3000)를 그대로 넘겨서 50분짜리 시계가 걸려 있었다.
-- 시계는 **마운트 때 한 번만** 걸린다 — `useTimer`의 의존성 배열이 비어 있다.
-  `open`이 다시 켜져도 되감기지 않으므로, 트리에 계속 떠 있는 토스트는
-  **두 번째 삭제부터 영영 안 닫힌다.** 되돌리기 번호를 `key`로 줘서 갈아 끼우는 것으로 푼다.
-- 번호는 **리듀서 상태에서 세지 않는다.** 접히면 `undo`가 null이 되어 번호도 같이 사라지고,
-  다음 삭제가 같은 번호를 받아 열쇠가 안 바뀐다. 모듈 카운터로 센다.
+### 2-3. 무대 (`RecordStage.tsx`)
 
-`tdsMock`이 둘 다 봐주고 있어서(ms로 읽고, `open`마다 시계를 다시 걸어서) 테스트는 조용했다.
-대역을 실물에 맞춘 뒤 기존 테스트가 먼저 깨졌고, 두 번째 삭제를 보는 테스트를 새로 넣었다.
+- 쉼: `눌러서 녹음` (누르면 `prime()` + `tick()` + `arm`).
+- 녹음 중: 경과 초 `3.2`(`DISPLAY.done` 크기), `● 말해` / `마이크 켜는 중…` / `마이크를 못 써 — 콤보를 만들 수 없어`, `취소` `완료`.
+  녹음 중엔 무대를 눌러도 아무 일 없음(두 번 누르면 재시작되는 사고 방지).
+- 이름: `녹음 2.3초` · `듣기` `다시 녹음` `취소` · **이름 입력**(`Field`, `autoFocus`, `returnKeyType="done"`, 엔터 = 저장).
+- 마이크 X(엔진 `mic: false`): 무대가 그 줄만 보이고 안 눌린다 — **눌리는 것에 이유가 쓰여 있으니 죽은 버튼이 아니다**(원칙 2).
+- 고정 높이 `STAGE_H = 180` 유지. 모양(살짝 움직임)은 **아직 안 넣는다** — 모양 커밋에서.
 
-**여기서 배운 것은 목록이 아니라 순서다.** 눈으로 보면 3초는 금방이고 두 번째 삭제도 금방이다.
-쌓아 두면 무엇이 언제 깨졌는지 못 짚는다. 보이는 걸 바꾼 다음엔 그때그때 본다.
+### 2-4. 시작 알림
 
----
+- `voice.micAvailable: boolean | null`(ready 전 null). `false`가 되면 세션에 한 번 TDS **`AlertDialog`**(`open` `title` `description` `onClose`):
+  제목 `마이크를 못 써`, 본문은 기획서 4.4 문구. 색을 얹을 필요가 없는 자리라 TDS 그대로 받는다 — design-system.md의 "액센트를 얹을 수 있나" 질문을 통과한다.
+- 테스트: `tdsMock`에 `AlertDialog` 대역 추가(열리면 title·description 텍스트 렌더). WebView 대역이 `ready`를 못 보내니 `micAvailable`을 어떻게 흉내낼지 —
+  `useCoachVoice`를 mock하지 말고, **엔진 `onMessage`를 직접 부르는 길**이 없으므로 이 알림은 **기기에서만 본다.** testing.md에 적는다.
 
-## 1. TDS 교체 — **하지 않는다. 2026-09-06에 닫혔다**
+### 2-5. 저장·카드
 
-셋 다 안 바꾼다. `Stepper`는 계약이 안 맞아서, `SegmentedControl`과 `TextField`는
-**받을 것보다 내줄 것이 크다고 판단해서.** 지금 것이 괜찮다는 게 결론이다.
-
-**아래는 추측이 아니라 번들에서 확인한 것이다. 다시 조사하지 마라.**
-되살리자는 제안이 나오면 새로 조사할 게 아니라 여기를 읽고, 그 사이에 무엇이 달라졌는지를 물어라.
-**색을 못 맞춘다는 사실이 바뀌지 않는 한 답은 그대로다.**
-
-공통 원인 하나가 셋 전부에 걸린다 — **TDS 2.0.5는 토스 브랜드 색(파랑·회색)에 박혀 있고
-이 앱은 검정 + 딥틸이다.** 전역 테마(`TDSProvider`의 `token`)로 뚫리는 건 `Button` 하나뿐이다.
-
-`Switch`와 `Checkbox`를 자체 구현으로 되돌린 이유가 남은 둘에도 그대로 걸린다.
-**액센트를 잃으면서까지 남의 구현을 받을 이유가 없다** — 지금 것은 실기기에서 다 확인됐고 잘 돈다.
-
-### 1-1. `Stepper` → **교체 불가. 하지 마라**
-
-TODO에 적혀 있던 후보 지정이 이름만 보고 한 오답이었다.
-
-- `StepperRow`는 값 증감이 아니다. 온보딩 절차를 나타내는 행이다 —
-  `NumberIcon`(1~7) · `Texts`(제목/설명) · 연결선(`hideLine`) · 오른쪽 화살표/버튼.
-- `NumericSpinner`에는 **`step`이 없다.** 항상 ±1이고 `format`도 `suffix`도 없다.
-
-우리 4곳이 전부 걸린다 — 라운드 시간(`step={15}` + `fmt`의 `3:00`), 휴식(`step={10}` + `fmt`),
-라운드(`suffix="회"`), 라운드당 호출(`suffix="번"`).
-
-**4곳 중 0곳이 그대로 옮겨진다.** 둘만 바꾸면 같은 시트 안에 두 모양이 섞이고
-[Stepper.tsx](../src/commons/components/Stepper.tsx) 76줄도 못 지운다 — 노렸던 이득이 사라진다.
-
-### 1-2. `Segmented` → `SegmentedControl.Root/Item` — **안 한다**
-
-**내줄 게 제일 크고 받을 게 제일 작다.** 선택된 칸의 액센트를 잃고 6곳이 동시에 흔들리는데,
-값이 number라 문자열 왕복이 남아서 [Segmented.tsx](../src/commons/components/Segmented.tsx) 72줄을 지우지도 못한다.
-
-제네릭 우려는 사실이었다. `Root`는 `value: string` 고정인데
-`BEAT_SEGMENTS`의 값은 **number**(0.4·0.5·0.65·0.85·1.05)다.
-
-- `AddMoveSheet`·`WordRow` 두 곳에 문자열 왕복(`String`/`Number`)이 붙는다
-- `name: string`이 필수 — 6곳 전부 새 prop
-- 세로 패딩이 `small` 5px / `large` 7px다. 우리는 `normal` 10 / `tall` 14 — **납작해진다**
-- `level: 'small' | 'caption'` 대응물 없음. 글자가 `t6`/`t5`로 내부 고정이라
-  동작 길이 5칸에서 줄이지 못한다
-- 6곳이 한꺼번에 움직인다 — AddMoveSheet(2) · SettingsSheet · MovePickerSheet · WordRow · WordsView
-
-**색** — 인디케이터가 `colorPreference`만 보고 `dark → inverseGrey300`으로 하드코딩돼 있다.
-선택된 칸의 `ACCENT` 딥틸이 회색이 된다. `Indicator`는 공개 API(`SegmentedControl = { Root, Item }`)에
-없어서 갈아끼울 통로도 마땅치 않다.
-
-**위험** — 6곳이 동시에 움직인다. `WordRow` 것은 memo가 걸린 줄 안에 있어서
-prop 항등이 깨지면 [rendering.md](rules/rendering.md)의 재렌더 테스트가 잡는다. 잡히면 고마운 거다.
-
-### 1-3. `TextInput` → `TextField` — **안 한다**
-
-셋 중 제일 아깝지만 접는다. [Field.tsx](../src/commons/components/Field.tsx) 57줄이 사라지는 대신
-포커스 라인이 `blue400`이 되고, `WordRow`의 좁은 인라인 편집기가 자기 높이·라벨·패딩을 들고 오는 것에
-맞서야 한다. **픽셀 충실도를 내주고 사는 57줄이 아니다.**
-
-**계약은 셋 중 제일 잘 맞는다.** `variant`(필수) · `label` · `labelOption` · `help` · `hasError` ·
-`paddingTop/Bottom` · `containerStyle` · `prefix`/`suffix`/`right`가 있고 `TextInputProps`가 통과한다.
-
-- [Field.tsx](../src/commons/components/Field.tsx) — 라벨이 내장이라 이 컴포넌트가 통째로 없어진다
-- [CombosView.tsx:125](../src/screens/ShadowCoach/views/CombosView.tsx#L125) — 콤보 입력. 칩 역동기화가 붙어 있다
-- [WordRow.tsx:79](../src/screens/ShadowCoach/parts/WordRow.tsx#L79) — **한 줄 인라인 편집기. 여기가 제일 위험**
-
-**색은 못 맞춘다.** 색 prop이 없고 전부 `useAdaptive()`가 정한다 —
-글자 `grey800` · 플레이스홀더 `grey500` · 라인 `grey100` / 포커스 `blue400` / 오류 `red600`.
-`backgroundColor`·`placeholderColor`를 받는 건 `OldTextField`인데 **deprecated**다.
-
-**위험** — TDS TextField는 자기 높이·라벨·패딩을 들고 온다.
-`WordRow`는 줄 안에 끼워 넣은 좁은 편집기라 픽셀이 깨진다면 여기다.
-
-### 못 하는 것 둘
-
-- **바텀시트 열고 닫는 속도** — `Container.js`에 `spring.quick`(stiffness 800 / damping 55)이 박혀 있다.
-  `RootProps`에 속도 prop이 없고 `style`은 애니메이션이 걸린 wrapper가 아니라 안쪽 컨테이너로 간다.
-  `Container`는 export되지도 않는다. 바꾸려면 자체 시트를 만드는 수밖에 없다.
-- **`Switch` 트랙 색** — `grey200 → blue500` 하드코딩. 그래서 RN 내장으로 되돌렸다.
-
-### 그럼 `Segmented` 글자 1px은?
-
-**진행 중 절에 남아 있던 그 한 줄은 여기와 무관하다.** 우리 컴포넌트를 우리가 고치는 것이라
-색을 내줄 일이 없다. 하려면 그냥 하면 된다.
+- `saveCombo` — 2번에서 실제 저장이 돈다: `addCombo { name, clip: { data, ms, head, tail } }` / `replaceCombo { id, name, clip? }`.
+- 저장 FAB은 `named`에서만, **키보드를 따라 올라간다**(지금 `kb + 16` 그대로).
+- 카드 메뉴 wiring: 듣기(`previewCombo`) · 이름 고치기(`edit` → named) · 다시 녹음(`edit` + `arm`) · 삭제.
+- 빈 목록: 콤보 0개면 `눌러서 첫 콤보를 녹음해`. 훈련의 `시작`은 지금처럼 이유를 말한다(이미 그렇다 — `콤보가 없어`).
+- 테스트: `record`(무대 누르면 대역이라 `마이크 켜는 중…`에 머문다 → 완료 → 이름 단계 → 저장 누르면 `녹음이 없어`), `name`(빈 이름 안내는 심은 콤보로 edit 진입해서), `empty`, `undo`(이름으로), 저장소(심은 콤보 + 녹음이 다시 열어도 남음).
 
 ---
 
-## 2. 전체 실기기 점검 — **2026-09-06 전부 통과. 닫혔다**
+## 3. 훈련 화면 커밋
 
-여기서 넷이 나왔고 넷 다 고치고 다시 확인했다. 아래에 하나씩 있다.
-
-### 여기서 나온 것 — 슬라이더가 손가락을 못 따라가던 것 (2026-09-06, 고치고 확인)
-
-설정 시트의 슬라이더가 느렸다. **원인은 슬라이더가 아니라 자료였다.**
-자료가 트리 밖 한 벌이라 한 틱마다 화면 전체가 다시 그려졌고, 그 일에 JS 스레드를 다 써서
-정작 손가락을 못 따라갔다. 재보니 **틱 60개에 `TrainView` 렌더 60회, 같은 눈금 60번에도 60회.**
-
-- 끄는 동안은 [Slider.tsx](../src/commons/components/Slider.tsx)가 지역 상태로 들고 있다가
-  손을 멈추고 110ms 뒤에 넣는다. 숫자는 지역 값에서 나오므로 손가락을 그대로 따라간다.
-  미뤄 둔 값을 안고 사라지지 않게 언마운트에서 넣고 간다 — 시트를 바로 닫는 경우가 있다.
-- `patchSettings`가 **같은 값이면 들어온 상태를 그대로 돌려준다.** 리듀서에서 막아야
-  슬라이더 말고 다른 호출부도 같이 덮인다.
-- `hint` 문자열 prop이 `format` 함수로 바뀌었다. 아직 저장 안 된 값을 보여줘야 해서
-  숫자를 만드는 일이 슬라이더 안으로 들어왔다.
-
-측정 결과 **끄는 동안 60회 → 0회**가 됐다. 이걸 지키는 테스트가 `memo.test.tsx`에 있다.
-자세한 것은 [rendering.md](rules/rendering.md)의 "프레임마다 오는 입력".
-
-**기기에서 봤다 (2026-09-06). 통과다** — 손가락을 따라오고, 손을 멈추면 값이 들어가고,
-끌자마자 닫아도 마지막 값이 남는다.
-
-**남은 프레임당 비용은 TDS 슬라이더 자신의 것이고, 그걸로 충분하다.**
-더 줄이려면 슬라이더를 직접 만들어 네이티브 드라이버로 손잡이를 굴리는 수밖에 없는데,
-`Slider`는 TDS에서 액센트 색을 받는 몇 안 되는 컴포넌트다. **지금 상태로 두라는 뜻이다.**
-끄는 도중 손을 멈추면 110ms 뒤 커밋이 나가면서 전체 렌더가 한 번 일어나는데,
-실물에서 걸리지 않았다. 릴리스 콜백이 없어 "놓을 때만"으로는 못 바꾼다.
-
-- [x] 기획서 11장의 시나리오를 기기에서 한 번씩 (2026-09-06) —
-      `nav` `fabshow` `fab` `chip` `dup` `reveal` `undo` `moveundo` `addmove` `words` `beats` `picker` `gap` `done`
-      그리고 여기서 나온 `bg`(백그라운드 일시정지)까지 열다섯
-- [x] 3라운드 완주 한 번 (2026-09-06). 화면 꺼짐 방지 `useKeepAwake`가 먹는다
-- [x] 저장소 껐다 켜기 — **한 번 보고 깨진 걸 잡았고(아래), 고친 뒤 다시 봐서 통과했다**
-
-### 저장소가 통째로 날아가던 것 — 잡아 고치고 다시 확인했다 (2026-09-06)
-
-미니앱을 완전히 종료하니 넣은 콤보도 바꾼 호출어도 전부 초기화됐다.
-
-**`AsyncStorage`가 토스 미니앱에서 안 남는다.** `@granite-js/native`가
-`@react-native-async-storage/async-storage`를 그대로 재수출하고 타입도 맞아서 그걸 썼는데,
-호스트에서 살아남는 저장소가 아니었다. `@apps-in-toss/native-modules`의 `Storage`가 따로 있고
-문서가 **"앱이 종료되었다가 다시 시작해도 데이터가 유지"**라고 직접 말한다. 권한 선언은 필요 없다.
-
-**타입이 맞는다고 그 위에서 산다는 뜻이 아니다.** 새 네이티브 기능을 붙일 때
-`@apps-in-toss`에 같은 것이 있는지 먼저 봐라 — [state-and-hooks.md](rules/state-and-hooks.md).
-
-테스트가 조용했던 이유가 둘이다:
-
-- 대역이 `AsyncStorage`에 붙어 있어서 **실물이 안 쓰는 것을 지키고 있었다.** 지금은
-  `test-support/storageMock`이 토스 `Storage` 자리에 들어간다.
-- 저장 실패를 조용히 삼키는 계약(원칙 6) 때문에 화면이 멀쩡했다. **이건 그대로 둔다** —
-  대신 저장 경로를 건드리면 기기에서 껐다 켜는 확인을 미루지 마라.
-
-**기기에서 다시 봤다 (2026-09-06). 통과다** — 미니앱을 껐다 켜도 바꾼 자료가 남고,
-슬라이더를 놓자마자 나가도 남는다. 110ms(슬라이더) + 300ms(저장) 창을 백그라운드 플러시가 닫는다.
-- [x] 백그라운드 일시정지 — 아래에서 나온 것. 기기 확인 완료, 기획서 9장에 반영했다
-
-**확인 방법 — 세 갈래 중 둘이 개발 서버로 된다.**
-`AsyncStorage`는 네이티브에 있어서 JS 번들이 새로 서도 안 지워지고, 자료는 모듈 상태라
-컨텍스트가 새로 서면 `hydrateOnce()`가 저장소를 다시 읽는다. 그래서 **전체 리로드**면
-"쓴 게 남았나 / 읽어 오나"는 그대로 확인된다. **fast refresh로는 안 된다** —
-모듈 상태가 살아남아 저장이 깨져 있어도 통과한 것처럼 보인다.
-
-실물이 필요한 건 하나다 — **[useMaterial.ts:344](../src/screens/ShadowCoach/hooks/useMaterial.ts#L344)의 백그라운드 플러시.**
-쓰기를 300ms 미루므로 그 창이 닫히기 전에 나가면 `AppState`가 밀어내야 한다.
-슬라이더는 앞에 110ms가 더 붙어서 여기가 제일 아슬아슬하다. 미니앱을 나갔다 들어오면 된다.
-
-### iOS 백그라운드에서 훈련이 멈춘다 → **나가면 일시정지로 정했다** (2026-09-06)
-
-**iOS에서 백그라운드로 보내면 나오고 있던 말 한 마디까지만 나오고 그 뒤로 조용하다.**
-JS가 멈추기 때문이다 — 진행 중이던 발화는 네이티브 TTS가 마저 읽고, 다음 것을 예약할 JS가 없다.
-
-**고칠 수 있는 종류가 아니다.** iOS에서 백그라운드로 소리를 이어가려면 앱이
-`UIBackgroundModes: audio`를 들고 오디오 세션을 잡고 있어야 하는데, 우리는 토스 안의 미니앱이라
-그 선언이 우리 것이 아니다. 게다가 TTS는 숨은 WebView에서 돈다 — 백그라운드 WKWebView는 더 확실히 멈춘다.
-
-같이 드러난 것이 하나 더 있다. **시계가 벽시계가 아니라 틱을 센다** —
-[useTraining.ts:149](../src/screens/ShadowCoach/hooks/useTraining.ts#L149)의 `setInterval`이
-1초마다 `timeRef - 1`을 한다. 그래서 백그라운드에 있던 시간만큼 라운드가 통째로 뒤로 밀린다.
-돌아왔을 때 밀린 `setTimeout`들이 한꺼번에 터지는지는 **아직 안 봤다.**
-
-**고른 것: 나가면 멈춘다.** 후보 셋 중에서다 —
-일시정지 / 돌아올 때 벽시계로 맞추기 / 그대로 두기.
-
-- **벽시계 맞추기를 안 고른 이유** — 시간은 맞아도 그동안의 호출어는 못 들은 것이고,
-  오래 나갔다 오면 라운드가 이미 끝나 있다. 안 들리는 동안 훈련이 흘러가는 건 훈련이 아니다.
-- **그대로 두기를 안 고른 이유** — 조용히 밀린다. 밀린 예약이 돌아올 때 한꺼번에 터지면
-  무엇이 고장인지도 모른다.
-- 일시정지는 **기획서에 이미 있는 경로**다(101줄: 재개하면 콤보를 처음부터 다시 부른다).
-  새 규칙이 안 생기고, 밀린 호출도 나가는 순간 `clearAll`로 같이 걷힌다.
-- **돌아와도 저절로 안 이어진다.** 주머니 속에서 훈련이 재개되면 안 된다.
-- `inactive`가 아니라 `background`에서만 멈춘다. 알림 배너·제어 센터는 스쳐 가는 것이다.
-- **안드로이드도 같이 멈춘다.** 거기서는 계속 돌 수도 있지만, 한쪽만 다르게 굴면
-  무엇이 정상인지 알 수 없다. 안드로이드에서 실제로 어떤지는 **아직 안 봤다.**
-
-**들어간 것** — [useTraining.ts](../src/screens/ShadowCoach/hooks/useTraining.ts)가
-`AppState`를 듣고 `background`에서 `pause()`를 부른다. `togglePause`의 멈추는 갈래를
-`pause`로 뽑아 나눠 쓴다. 테스트 셋이 `cues.test.tsx`에 있고 셋 다 고의로 깨뜨려 확인했다.
-
-**기기에서 봤다 (2026-09-06). iOS에서 나가면 멈춘다.**
-**기획서 9장 "앱을 나갔을 때"에 반영했고, 11장 검증에 `bg`로 올렸다.**
-근거는 12장에도 남겼다 — 왜 시간을 맞추지 않고 멈추는지.
-
-- [ ] **안드로이드는 아직 안 봤다.** 거기서는 원래 계속 돌았을 수도 있다.
-      그렇다면 "양쪽 다 멈춘다"는 결정을 다시 재야 한다 — 한쪽에서 되는 걸 끄고 있는 셈이니까.
-
-이건 저장소 항목을 대신하지 않는다. 백그라운드로 갔다 **돌아온** 것이지 앱이 죽은 게 아니라
-`flushMaterial`이 실제로 썼는지는 아직 안 밝혀졌다.
-
-**여기를 통과했다.** `preview.tsx` 2289줄은 지웠다(3-3). 남은 건 main 병합뿐이다.
+- `TrainView` — 이름 + 막대는 1번에서 뼈대가 들어갔다. 여기서 모양을 맞춘다: 이름은 `Typo level="title"`쯤, 막대는 기존 `beatTrack` 높이 8px 하나.
+  **요청 안 한 간격은 건드리지 않는다**(design-system.md). 칩이 있던 자리의 여백은 그대로 두고 기기에서 본 뒤 정한다.
+- `useCallouts` — 본체 없는 콤보 건너뛰기(1번에서 넣었으면 확인만). `hold` 유지 구간은 그대로.
+- `DoneOverlay` — 3행. 카운트업 유지.
+- 설정 시트 — 템포 범위·벨 테스트는 1번에서. 여기선 `format`이 `1.00` 두 자리인지 확인.
+- 테스트: `cues` 그대로. `gap`·`done` 그대로(심은 콤보로).
 
 ---
 
-## 3. 구조 정리 — 지금 비용을 물리지 않는 것들
+## 4. 기기 확인 — 3번 뒤에
 
-**"구조 정리는 미룬다"는 규칙이 아니다.** 지금 실제로 비용을 물리고 있는 구조 문제는 즉시 한다 —
-2104줄을 556줄로 가른 작업이 그랬다. 아래 셋이 뒤로 밀린 이유는 각각 다르고, 셋 다 그 이유가 사라지면 올라온다.
-
-
-### 3-1. 떠 있는 층의 `bottom` 계산
-
-**보류를 권한다. 이유 — 모양이 아직 움직이는 중이다.**
-
-원래 3곳 중복이었는데 TDS Toast가 하나를 다른 모양으로 바꿔서
-지금은 **둘뿐이고 그 둘도 식이 다르다** —
-FAB는 `kb + 16`([index.tsx:439](../src/screens/ShadowCoach/index.tsx#L439)),
-토스트는 `kb + 80 - bottomSafe`([index.tsx:491](../src/screens/ShadowCoach/index.tsx#L491)).
-**묶을 중복이 남아 있지 않다.**
-3곳일 때 묶었다면 추상을 만들고, TDS가 한 호출부를 어긋나게 만들고,
-그걸 억지로 늘리거나 도로 푸는 일을 했을 것이다.
-페이지 이식 때 셋째(`Overlay`의 발)가 잠깐 생겼다가 시트 전환으로 다시 사라졌다 —
-`useKeyboardHeight`를 쓰는 곳은 이제 이 둘뿐이다. **한 번 늘었다 줄어든 것 자체가 근거다.**
-변하는 중인 모양 위에 추상을 얹지 마라. TDS 교체로 층이 더 줄면 그때 다시 센다.
-
-### 3-2. `TrainView` 쪼개기
-
-- [ ] `TrainStage`(~70줄) · `TrainControls`(~28줄) 분리 검토
-
-**이유 — 지금 풀 문제가 없다.** 316줄은 안 무겁고, 자를 근거가 취향밖에 없다.
-
-지금 자르면 **어디를 자를지를 감으로 정하게 된다.** 나중에 진짜 이유가 생기면
-(prop 수가 실제로 터지거나, 다른 데서 재사용하게 되거나) 그 이유가 자를 자리를 알려준다.
-미뤄서 이득이 아니라 **미뤄도 손해가 없고 근거만 늘어난다.**
-자를 거면 [architecture.md](rules/architecture.md)의 "자를지 말지" — 감이 아니라 재고 나서.
-
-### 3-3. `preview.tsx` 삭제 — **끝났다 (2026-09-06)**
-
-전체 실기기 점검이 통과한 뒤 2289줄을 지웠고 `tsconfig`의 `exclude`도 비웠다.
-미룬 이유는 순서 하나였다 — 점검 때 원래 모습을 대조할 유일한 원본이었다.
-**되찾을 일이 생기면 git 히스토리에 있다.**
+1. 앱 열기 → 알림이 **안** 뜨는가(iOS는 마이크가 있다). 콤보 탭이 **빈 목록**인가(옛 콤보가 버려졌나). 껐다 켜도 옛 것이 안 살아나는가
+2. 무대 누름 → `● 말해` → 말하기 → 완료 → `녹음 n초` → **듣기**: 첫 마디가 안 잘리고 뒤 침묵이 잘리는가. 잘리면 문턱 5%를 내린다
+3. 8초 넘게 말하기 → 저절로 완료되는가
+4. 이름 없이 저장 → `이름을 적어줘`. 이름 적고 저장 → 맨 위 카드, 무대는 쉼
+5. 카드 듣기 · 이름 고치기 · 다시 녹음(취소하면 원래 녹음이 남는가) · 삭제 → 되돌리기(녹음까지)
+6. 훈련 시작 → 내 목소리, 이름 + 막대. 일시정지 → 재생이 **즉시** 끊기는가. 건너뛰기. 앱 나갔다 오기
+7. 템포 0.8 / 1.3 — 음정 변화가 참을 만한가. 아니면 9장의 보류대로 범위를 더 좁히거나 뺀다
+8. **콤보 20개** 녹음 → 껐다 켜기 → 다 남는가, 켜질 때 늦지 않는가(본체를 전부 푼다). 저장소 한도는 문서에 없다
+9. 저장 FAB이 키보드 위로 따라 올라오는가. 이름 입력에 포커스가 오는가
 
 ---
+
+## 그 뒤에 남는 것
+
+- **모양 커밋** — 무대를 누를 때 살짝 움직임(약 100ms, `Animated` + `useNativeDriver`). 결정은 났다(숫자 + 살짝 움직임 — 숫자는 경과 초가 됐다).
+- **A. 스플래쉬** — 그대로 열려 있다. `granite.config.ts`의 `icon`이 비어 있다. 호스트가 주는 자리가 먼저다. 타이머 안전장치 없이 만들지 마라.
+- **D. 메인 컬러** — "너무 동적이며 입체감이 없음"이 무엇을 가리키는지 아직 모른다. 화면이 둘로 줄었으니 답이 오면 한 번에.
+  `C.sheet` #101013 · `C.card` #17171c · `C.line` #202027이 서로 가까운 건 그대로다.
+- **B. 초기 데이터** — **닫혔다.** v2는 초기 콤보가 없다.
+- **C. 콤보 추가** — v2가 곧 이것이다. 1~3번이 끝나면 닫힌다.
+- 안드로이드 녹음 · 저장소 용량 · 템포 음정 — 기획서 9장 보류.
+- `Segmented` 글자 1px — 설정 시트에만 남는다. 하려면 그냥 하면 된다.
+
+---
+
+## 닫힌 것 — 되살리자는 말이 나오면 여기를 읽어라
+
+### 하위 화면은 바텀시트다 (2026-09-06 기기 확인)
+
+풀모달이 토스 상태바를 덮는 문제 → 라우트(`/add-move`) → TDS 바텀시트. 시트는 `Modal`이 아니라 트리 안 `position:absolute` 뷰라
+헤더를 안 덮으면서 라우트가 물던 값(결과 못 들고 오기·자료가 트리 밖·전환마다 손보기)을 안 문다. 근거는 기획서 3장.
+v2에서 시트는 설정 하나뿐이지만 **새 하위 화면이 생기면 같은 답이다.** 전체 화면은 훈련 완료 하나.
+시트를 띄우면 탭바(z 40)·FAB(z 30)을 걷는다 — TDS 시트는 z를 안 건다.
+
+### TDS 채택 (2026-09-06 닫힘)
+
+들어간 것: `TDSProvider` `Txt` `colors` `Slider` `BottomSheet` `Button` `Toast`. 2번에서 **`AlertDialog`가 하나 더** 들어간다 — 색을 얹을 필요가 없는 자리라 예외가 아니다.
+안 받은 것과 이유: **TDS 2.0.5는 토스 브랜드 색에 박혀 있고 이 앱은 검정 + 딥틸이라, 액센트를 못 얹는 컴포넌트는 받지 않는다.**
+`Switch` `Checkbox`(grey200 → blue500 하드코딩), `SegmentedControl`(인디케이터 `inverseGrey300` 하드코딩, 값이 string 고정),
+`TextField`(색 prop 없음, 자기 높이·라벨·패딩), `Stepper`(`NumericSpinner`에 `step`이 없다), `Tabs`(`useAdaptive` 하드코딩 + `PagerView flex:1`).
+**FAB는 TDS `Button`으로 바꾸지 마라** — 알약·원형 커스텀. 시트 열고 닫는 속도는 `Container.js`에 박혀 있어 못 바꾼다.
+새 TDS 컴포넌트를 넣자는 제안은 먼저 이 질문을 통과해야 한다: **액센트를 얹을 수 있나?** 얹을 필요가 없는 자리(알림)면 통과다.
+
+`.d.ts`만 읽고 두 번 틀렸다 — `Toast`의 `duration`은 초, 시계는 마운트 때 한 번. **시계를 드는 컴포넌트는 `.js` 본문까지 읽어라.**
+
+### 실기기 점검에서 잡은 넷 (2026-09-06, 전부 고치고 다시 확인)
+
+- **토스트가 두 번째부터 안 접힘** — 되돌리기 번호를 `key`로 갈아 끼운다. 번호는 모듈 카운터(상태에서 세면 접힐 때 같이 사라진다).
+- **슬라이더가 손가락을 못 따라감** — 원인은 자료였다. 트리 밖 한 벌이라 한 틱마다 화면 전체가 다시 그려졌다.
+  끄는 동안 지역 상태(110ms), `patchSettings`는 같은 값이면 상태 그대로. `memo.test`가 지킨다. 남은 비용은 TDS 슬라이더 자신의 것 — 직접 만들지 마라.
+- **앱을 나가면 훈련이 조용히 멈춤(iOS)** — 나가면 일시정지로 정했다. 기획서 8장. 안드로이드는 **여전히 안 봤다.**
+- **저장소가 통째로 날아감** — `AsyncStorage`가 토스 미니앱에서 안 남는다. 토스 `Storage`로. 대역도 거기 붙였다.
+  **타입이 맞는다고 그 위에서 산다는 뜻이 아니다.** 새 네이티브 기능은 `@apps-in-toss`에 같은 게 있는지 먼저 — 마이크는 없었다.
+
+### 구조 정리 — 지금 비용을 물리지 않는 것
+
+- 떠 있는 층의 `bottom` 계산 — 둘뿐이고 식이 다르다. 묶을 중복이 없다.
+- `TrainView` 쪼개기 — 1번에서 칩·비트 트랙이 나가면 이유가 완전히 사라진다. **지운다.**
+
+### 스파이크 둘 (2026-09-13)
+
+- **TTS 리듬** — 잽 4연타 0.2/0.3/0.4/0.5를 TTS로 들었더니 말 속도 1.15에서 셋이 같고 2.0에서 넷이 갈렸다. 하한은 말 하나 읽는 시간이다. → TTS를 버렸다.
+- **녹음** — 숨은 WebView `getUserMedia` + `MediaRecorder`. iOS에서 권한 창 → 녹음(AAC 2초 50KB) → WebAudio 재생까지 됐다.
+  출처를 `https://localhost`로 줘야 한다(보안 컨텍스트). TTS는 그 뒤에도 나왔다(이제 상관없다).
 
 ## 하지 않기로 한 것
 
-되살리자는 제안이 나오면 여기를 먼저 읽어라.
-
 | 항목 | 이유 |
 |---|---|
-| FAB를 TDS `Button`으로 | 알약·원형 커스텀 모양이라 맞지 않는다. 실물에서 어색하면 그때 다시 |
-| adaptive 색 토큰 | 검정 바탕 고정. 다크에서 뒤집혀 흰 글자를 못 얹는다 |
-| `SegmentedControl`·`TextField` 교체 | 액센트·픽셀을 내주고 받는 게 적다. 근거는 1번에 그대로 있다 |
-| `Stepper` 교체 | 계약이 안 맞는다. `NumericSpinner`에 `step`이 없다 — 1-1 |
-| 애니메이션으로 콤보 보여주기 | 기획서 12장 — 화면을 응시하게 만들어 자세가 무너진다 |
-| 리듬게임 UI·판정·점수 | 기획서 12장 — TTS 첫 호출 지연이 100~400ms 튄다. 어긋난 리듬을 배우게 된다 |
-
-기획서 10장의 보류 항목 9개(음성 입력, 콤보 순서 바꾸기, 폴더·태그·검색, 훈련 기록 등)는
-**기획 판단이 필요한 것들이다. 코드로 먼저 만들지 마라.**
+| 두드려서 리듬 만들기 | 녹음이 리듬을 다 갖는다. 기획서 11장 |
+| 클릭음으로 박자 | 3분에 100번 울린다. 녹음이 대신한다 |
+| 녹음의 자동 완료(n초 침묵) | 마지막 마디 뒤 쉼을 끝으로 친다. 완료 버튼 + 8초 상한 |
+| 녹음 파형 표시 | 원칙 1. 듣기가 있다 |
+| 음성 인식으로 이름 채우기 | 모듈이 없다 |
+| 리듬 보정·양자화 | 녹음에는 해당 없음 |
+| FAB를 TDS `Button`으로 | 알약·원형 커스텀 |
+| adaptive 색 토큰 | 검정 바탕 고정. 다크에서 뒤집힌다 |
+| 애니메이션으로 콤보 보여주기 · 리듬게임 UI | 기획서 11장 — 화면을 응시하게 만든다 |
