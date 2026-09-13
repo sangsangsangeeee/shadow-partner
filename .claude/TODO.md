@@ -5,39 +5,31 @@
 
 ## 내일 여기서 시작한다 (2026-09-13 마감 기준)
 
-**브랜치는 `feat/shadow-coach` 그대로.** 4.4가 **녹음까지** 들어갔다 — 두드리면서 말하면 리듬과 목소리가 같이 담기고,
-훈련 중엔 TTS 대신 내 목소리가 나온다. 관문 전부 초록 — `tsc` 0 · `eslint` 0 · `jest` 162/162 (11묶음) · `ait build` 0/0 양쪽 RN.
+**브랜치는 `feat/shadow-coach` 그대로. 기획서가 v2다. 코드는 아직 v1 + 녹음(`d85893d`)이다.**
 
-왜 녹음인가: 스파이크에서 TTS가 두드린 리듬을 못 따라갔다(말 하나 읽는 시간이 하한). 사용자가 녹음을 냈고,
-토스 모듈엔 마이크가 없어 숨은 WebView의 `getUserMedia`로 스파이크했더니 **iOS에서 권한·녹음·재생이 됐다**
-(AAC 2초 50KB). 기획서 4.4·5·7·9·10·12장에 적었다.
+무슨 일이 있었나: 두드리기+녹음(A)을 기기에서 써 보고 사용자가 판을 뒤집었다 — **TTS 전부 제거, 목소리·말 속도 설정 제거,
+두드리기 UI 제거, 호출어 탭 제거, 콤보는 녹음 + 이름.** 여덟 가지 결정을 받아 기획서 v2로 다시 썼다:
+마이크 없으면 시작 때 알림 · 템포 = 재생 속도 0.8~1.3 · **이름 필수** · 옛 콤보(녹음 없음)는 버림 · 녹음 8초 상한 ·
+앞뒤 침묵은 소리로 잘라냄 · 훈련 화면은 이름 + 막대 하나 · 카드는 듣기·이름 고치기·다시 녹음·삭제.
 
-들어간 것:
+**다음: 코드를 v2로. 셋으로 나눠 커밋한다 — 지우기가 먼저다.**
 
-- **엔진**([VoiceEngine.tsx](../src/commons/components/VoiceEngine.tsx)) — `recordStart/Stop`, `loadClip/dropClip/playClip`, `recordEvent`(seq로 구분).
-  녹음 본체는 dataURL, 재생은 id별 `AudioBuffer`. `hush`가 녹음 재생도 끊는다. **출처를 `https://localhost`로 바꿨다** —
-  `getUserMedia`가 보안 컨텍스트에서만 산다. **TTS `소리 테스트`가 여전히 나오는지 기기에서 아직 확인 안 됨**
-- **모델** — `Combo.clip?: { offset, ms }` + `Material.clips`(콤보별 dataURL). 저장은 `sbc:clip:<id>`로 따로, 지우면 `removeItem`.
-  `addCombo`/`replaceCombo`가 `clip`을 받는다(`undefined` 유지 · `null` 버림 · 객체 교체)
-- **초안 리듀서** — `arm`(첫 터치 = 마이크) · `tap{at, wall}` · `recStarted` · `recFailed` · `recorded`. 본체는 `stopping` 상태에서만 받아
-  취소한 녹음이 늦게 와도 안 붙는다. `offset = 첫 두드림 벽시계 − 마이크 켜진 벽시계`
-- **재생** — `clipPlan`(순수): 첫 두드림 0.15초 앞에서 틀고, 마지막 동작 길이만큼만 남기고, 템포는 `playbackRate`.
-  `useCallouts`·카드 듣기·초안 듣기 셋이 다 이걸 본다. 칩은 두드린 시각에 넘어간다
-- 무대가 마이크 상태를 한 줄로 말한다 — `마이크 켜는 중…` / `● 두드리면서 말해` / `마이크를 못 써 — 목소리 없이 저장돼`
+1. **지우기 커밋.** 나가는 것: `parser.ts`(+테스트 32) · `moves.ts`의 동작·별칭·번호(남기는 건 MODES·CUES·DEFAULTS·STORAGE_KEYS →
+   `constants/training.ts`로 이름을 바꾼다) · `naming.ts`의 label/beat/comboSteps(clipPlan만 남긴다) · `rhythm.ts` ·
+   `WordsView` `WordRow` `AddMoveSheet` `MovePickerSheet` `SlotRow` · `TapStage`의 두드림 · `Material`의 labels/customMoves/beats/undo removeMove ·
+   `Combo.moves/rhythm` · `Settings.rate/voiceURI` · `VoiceEngine`의 speak/voices · `MaterialContext`의 label/beatOf/alias ·
+   설정 시트의 목소리·말 속도·소리 테스트 · `DoneOverlay`의 동작 수 · 관련 테스트 전부. **TODO.md의 v1 절(C절 결정표, 스와이프 절, 1번 TDS 절의 WordRow 언급)도 이때 정리.**
+   `tsc`가 잡아 주는 대로 따라가면 된다. 이 커밋만으로 `jest`가 초록이어야 한다.
+2. **녹음 무대 · 이름 · 카드 커밋.** `comboDraft`를 녹음 초안으로 다시(idle → recording → named). 8초 자동 완료(엔진 타이머).
+   엔진이 풀 때 첫 소리·마지막 소리(`head`/`tail`)를 재서 넘긴다 — RMS 임계로. 이름 입력 포커스 + 저장 FAB이 키보드 따라 올라감.
+   카드: 이름 + 길이, `⋯` 듣기·이름 고치기(한 줄 편집)·다시 녹음·삭제. 빈 목록 안내. 시작 때 마이크 알림(TDS `Dialog` — 색 안 얹어도 되는 자리).
+   hydrate: 녹음 없는 콤보 버림, `sbc:labels/moves/beats` 지움.
+3. **훈련 화면 커밋.** 칩·비트 트랙 → 이름 + 막대 하나(`FillBar` 재생 길이). `useCallouts`는 clip만 튼다. 통계에서 동작 수 제거.
+   템포 슬라이더 0.8~1.3. `소리 테스트` → `벨 테스트`.
+4. 기기 확인 — TODO 10장 시나리오 + 저장소 20개 + 템포 음정.
 
-**다음: 기기에서 본다.** 순서대로:
-
-1. 설정 → `소리 테스트` — 출처를 바꿨는데 TTS가 아직 나오는가. **안 나오면 여기서 멈춘다**
-2. 콤보 탭 → 무대 한 번 누름(`마이크 켜는 중…` → `● 두드리면서 말해`) → 두드리며 말하기 → 완료 → 자리 채우기 → **듣기**:
-   내 목소리가 첫 마디 앞에서 시작해서 마지막 뒤가 잘리는가. 첫 마디가 잘리면 `CLIP_LEAD`(0.15)를 키운다
-3. 저장 → 카드 듣기 → 훈련 시작: 녹음 콤보는 내 목소리, 옛 콤보는 TTS. 칩이 두드린 시각에 넘어가는가
-4. 앱을 껐다 켜서 녹음이 남는가(`sbc:clip:<id>`). 녹음 여러 개(10개쯤) 넣어 저장소가 버티는가 — **용량 제한이 문서에 없다**
-5. 템포 1.5에서 녹음 콤보 — 음정이 올라가는 게 참을 만한가. 아니면 녹음 콤보는 템포를 무시하는 걸로
-6. 수정 → 태그만 고치고 저장 → 녹음이 남는가. 다시 두드리기 → 새 녹음으로 바뀌는가
-7. 훈련 중 일시정지 → 녹음 재생이 끊기는가(`hush`가 끊는다)
-
-**모양 커밋(무대 살짝 움직임)은 아직이다.** 기기 확인 뒤에. **안드로이드 녹음은 기기가 없어 미확인** — 안 되면 그 콤보는 TTS로 간다(원칙 6).
-D(색)는 여전히 열려 있다.
+**모양 커밋(무대 살짝 움직임)은 v2 무대가 선 뒤에.** D(색)는 여전히 열려 있다 — 화면이 둘로 줄었으니 그때 한 번에.
+B(초기 데이터)는 닫혔다: 초기 콤보 없음, 첫 실행은 빈 목록. A(스플래쉬)는 그대로 열려 있다.
 
 ---
 

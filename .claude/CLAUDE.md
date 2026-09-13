@@ -1,7 +1,7 @@
 # 쉐도우 코치
 
 킥복싱 쉐도우 트레이닝 앱. Granite / Apps-in-Toss(토스 미니앱) 위의 React Native.
-콤보를 말로 불러 주고, 라운드 타이머를 돌린다.
+콤보를 **내 목소리로 녹음**해 두면 라운드 중에 그 녹음이 리듬 그대로 나온다. **기획서 v2** — TTS·동작·호출어는 나갔다.
 
 ## 첫 문장
 
@@ -14,7 +14,7 @@
 
 1. **화면을 안 봐도 훈련이 된다** — 화면은 보조다. 시각 효과를 늘리는 제안은 대개 틀렸다.
 2. **죽은 버튼을 두지 않는다** — 비활성 버튼 대신 눌리되 이유를 말하게 한다.
-6. **부가 기능 실패가 본 기능을 막지 않는다** — 오디오·음성·저장소가 없어도 타이머는 돌아야 한다.
+6. **부가 기능 실패가 본 기능을 막지 않는다** — 오디오·저장소가 없어도 타이머는 돌아야 한다. **마이크는 예외다** — 본 기능이라 못 쓰면 말한다.
 
 ## 명령
 
@@ -45,18 +45,18 @@ src/
   router.gen.ts               자동 생성. 손대지 마라.
   pages/                      라우트 정의. _layout(껍데기) · screenOptions(공통 화면 옵션)
   commons/                    화면에 매이지 않은 것
-    constants/  colors · layout · moves · typography
-    components/ 렌더 패턴 · VoiceEngine(숨은 WebView — TTS·소리·햅틱·녹음)
+    constants/  colors · layout · training(모드·유지 구간 안내·기본값·저장소 키) · typography
+    components/ 렌더 패턴 · VoiceEngine(숨은 WebView — 소리·햅틱·녹음·재생)
     hooks/      범용 훅
-    utils/      파서 · 저장소 · 포맷 · 링 기하 · 이름 해석
+    utils/      저장소 · 포맷 · 링 기하 · 재생 계획
     types.ts    도메인 모델
     test-support/tdsMock · routerMock · gestureMock · storageMock
   screens/ShadowCoach/        `/` 라우트. 유일한 라우트다.
     index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층과 시트를 얹는다.
-    MaterialContext.tsx  자료의 파생 조회를 화면 안에서 한 번만 계산한다
-    hooks/      useMaterial(자료) · useTraining(라운드) · useCallouts(호출어) · comboDraft(초안 리듀서)
-    views/      TrainView · CombosView · WordsView
-    parts/      카드 · 줄 · 무대 · 자리 줄 · 시트 셋(설정 · 동작 고르기 · 동작 추가) · 완료 겹침
+    MaterialContext.tsx  자료를 화면 안에서 한 번만 읽는다
+    hooks/      useMaterial(자료) · useTraining(라운드) · useCallouts(콤보 재생) · comboDraft(녹음 초안 리듀서)
+    views/      TrainView · CombosView
+    parts/      카드 · 녹음 무대 · 설정 시트 · 완료 겹침
 ```
 
 **하위 화면은 라우트가 아니라 바텀시트다.** 라우트는 `/` 하나뿐이다 —
@@ -75,6 +75,10 @@ src/
 - [workflow.md](rules/workflow.md) — 검증 관문과 커밋
 
 ## 지금 어디까지 왔나
+
+**2026-09-13에 기획이 v2로 바뀌었다 — TTS 코치에서 내 목소리 코치로.** 기획서는 v2가 됐고 **코드는 아직 v1 + 녹음이다.**
+파서·동작·호출어 탭·두드리기·슬롯·동작 고르기 시트가 전부 나가야 하고, 무대는 녹음만, 콤보는 이름만 갖는다.
+[TODO.md](TODO.md) 맨 위에 순서가 있다. 아래 문단들은 v1 시절 기록이다 — 구조의 이유는 여전히 맞지만 화면 목록은 낡았다.
 
 포팅과 구조 분리는 끝났다. `ShadowCoach/index.tsx`는 2104줄에서 601줄이 됐다.
 **하위 화면은 전부 바텀시트로 모였다** — 라우트(`/add-move`)와 풀모달(동작 고르기)을 걷어냈고,
