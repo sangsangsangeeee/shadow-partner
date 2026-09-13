@@ -138,6 +138,11 @@ export function CombosView({
                 pressLabel={slotLabel}
               />
             </View>
+            {draft.rhythm.length ? (
+              <Typo level="caption" color={C.z600} style={styles.gapText}>
+                간격 {draft.rhythm.map((g) => g.toFixed(2)).join(' · ')}초
+              </Typo>
+            ) : null}
             <View style={styles.row}>
               <Tap onPress={editor.onRetap} accessibilityLabel="다시 두드리기" style={styles.ghost}>
                 <Typo level="caption" color={C.z300} style={styles.btnText}>다시 두드리기</Typo>
@@ -293,6 +298,7 @@ const styles = StyleSheet.create({
 
   slotHead: { marginBottom: 12 },
   slotRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 8 },
+  gapText: { fontSize: COMBO_SIZE.meta, marginBottom: 8 },
   row: { flexDirection: 'row', gap: 8 },
   ghost: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
   btnText: { fontSize: COMBO_SIZE.note },

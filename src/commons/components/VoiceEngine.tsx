@@ -245,7 +245,8 @@ export function useCoachVoice(): CoachVoice {
         }
       },
       blip: () => tone(660, 0.14, 0, 0.2),
-      tick: () => buzz('tickMedium', 0),
+      // tickMedium은 기기에서 손맛이 없었다. 벨과 같은 세기로 올린다.
+      tick: () => buzz('basicMedium', 0),
       voices,
     };
   }, [send, onMessage, buzz, voices]);

@@ -359,7 +359,7 @@ describe('저장소 — 껐다 켜도 남는다', () => {
     fireEvent.press(screen.getByLabelText('콤보'));
     // 넣은 콤보가 목록에 남아 있고, 두드린 리듬도 같이 남는다(300ms 간격 둘)
     await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
-    expect(saved<{ rhythm?: number[] }[]>('sbc:combos')[0]?.rhythm).toEqual([0.3, 0.3]);
+    expect(saved<{ rhythm?: number[] }[]>('sbc:combos')?.[0]?.rhythm).toEqual([0.3, 0.3]);
     // 바꾼 호출어도 남아서 칩에 '잽'이 아니라 '원'으로 뜬다
     expect(screen.getAllByText('원').length).toBeGreaterThan(0);
     expect(screen.queryByText('잽')).toBeNull();
