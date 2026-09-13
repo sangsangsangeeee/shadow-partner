@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { pickCue } from '../../../commons/utils';
+import { comboSteps, pickCue, resolveBeat } from '../../../commons/utils';
 import { useLatestRef, useTimerBank } from '../../../commons/hooks';
 import type { Beats, Combo, HoldGap, Move, Settings, Stats } from '../../../commons/types';
 
@@ -92,16 +92,15 @@ export function useCallouts({ settings, moveMap, beats, speakMove, hush }: Param
       setActiveCombo(combo);
       setActiveIdx(-1);
 
+      const steps = comboSteps(combo, (id) => resolveBeat(id, beatRef.current, moveRef.current), st.tempo);
       let t = 0;
       combo.moves.forEach((mid, i) => {
-        const m = moveRef.current[mid];
-        if (!m) return;
+        if (!moveRef.current[mid]) return;
         later(() => {
           setActiveIdx(i);
           speakRef.current(mid);
         }, t);
-        const bt = beatRef.current[mid];
-        t += Math.round(((typeof bt === 'number' ? bt : m.beat) * 1000) / st.tempo);
+        t += steps[i] ?? 0;
       });
 
       if (chain) {

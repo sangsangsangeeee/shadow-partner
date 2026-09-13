@@ -9,7 +9,7 @@ import {
   TOAST_MS,
   TOUCH,
 } from '../../commons/constants';
-import { parseCombo, resolveName } from '../../commons/utils';
+import { comboSteps, parseCombo, resolveBeat, resolveName } from '../../commons/utils';
 import {
   Check,
   ListOrdered,
@@ -215,13 +215,12 @@ function Screen() {
       prime();
       hush();
       previewTimers.clearAll();
+      const steps = comboSteps(c, (id) => resolveBeat(id, beatsRef.current, moveRef.current), stRef.current.tempo);
       let t = 0;
-      c.moves.forEach((mid) => {
-        const m = moveRef.current[mid];
-        if (!m) return;
+      c.moves.forEach((mid, i) => {
+        if (!moveRef.current[mid]) return;
         previewTimers.later(() => speakMove(mid), t);
-        const b = beatsRef.current[mid];
-        t += Math.round(((typeof b === 'number' ? b : m.beat) * 1000) / stRef.current.tempo);
+        t += steps[i] ?? 0;
       });
     },
     [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef]

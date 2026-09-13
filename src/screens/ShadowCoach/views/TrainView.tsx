@@ -13,7 +13,7 @@ import {
   Typo,
 } from '../../../commons/components';
 import { ACCENT, C, MAXW, MODES, NUMS, REF_H, REF_RING } from '../../../commons/constants';
-import { fmt, trainScale } from '../../../commons/utils';
+import { comboSteps, fmt, trainScale } from '../../../commons/utils';
 import type { Move, Phase, Settings } from '../../../commons/types';
 import type { Callouts, Training } from '../hooks';
 
@@ -72,6 +72,8 @@ export function TrainView({
   );
   /** 기준 치수를 현재 배율로 옮긴다. */
   const px = (n: number) => Math.round(n * scale);
+  /* 비트 트랙의 칸 폭과 채우는 시간. 호출이 기다리는 시간과 같은 식이어야 눈과 귀가 맞는다. */
+  const steps = activeCombo ? comboSteps(activeCombo, beatOf, settings.tempo) : [];
   const ringSize = px(REF_RING);
 
   const statusText: Record<Phase, string> = {
@@ -169,15 +171,14 @@ export function TrainView({
                 })}
               </View>
 
-              {/* 비트 트랙 — 동작별 소요 시간에 비례한 폭 */}
+              {/* 비트 트랙 — 동작마다 다음까지 기다리는 시간에 비례한 폭. 호출과 같은 식에서 나온다 */}
               <View style={[styles.beatTrack, { height: px(8), gap: px(4) }]}>
                 {activeCombo.moves.map((mid, i) => {
                   const m = moveMap[mid];
                   if (!m) return null;
-                  const bt = beatOf(mid);
-                  const ms = Math.round((bt * 1000) / settings.tempo);
+                  const ms = steps[i] ?? 0;
                   return (
-                    <View key={`${mid}-${i}`} style={[styles.beatCell, { flexGrow: bt }]}>
+                    <View key={`${mid}-${i}`} style={[styles.beatCell, { flexGrow: ms }]}>
                       {i < activeIdx ? <View style={styles.beatDone} /> : null}
                       {i === activeIdx ? <FillBar ms={ms} color={ACCENT} /> : null}
                     </View>
