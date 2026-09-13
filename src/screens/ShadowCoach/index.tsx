@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Toast } from '@toss/tds-react-native';
 import {
@@ -9,7 +9,7 @@ import {
   TOAST_MS,
   TOUCH,
 } from '../../commons/constants';
-import { comboSteps, parseCombo, resolveBeat, resolveName } from '../../commons/utils';
+import { comboSteps, resolveBeat, resolveName } from '../../commons/utils';
 import {
   Check,
   ListOrdered,
@@ -27,10 +27,10 @@ import {
   useLatestRef,
   useTimerBank,
 } from '../../commons/hooks';
-import { useCallouts, useTraining } from './hooks';
+import { comboDraftReducer, INITIAL_DRAFT, nextEmpty, useCallouts, useTraining } from './hooks';
 import { useMaterialContext } from './MaterialContext';
-import { AddMoveSheet, ComboChips, DoneOverlay, MovePickerSheet, SettingsSheet } from './parts';
-import { CombosView, TrainView, WordsView } from './views';
+import { AddMoveSheet, DoneOverlay, MovePickerSheet, SettingsSheet, SlotRow } from './parts';
+import { CombosView, TrainView, WordsView, type DraftEditor } from './views';
 import type {
   Beats,
   Combo,
@@ -72,8 +72,9 @@ function Screen() {
 
   const [tab, setTab] = useState<Tab>('train');
 
-  const [draft, setDraft] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  /* 콤보 초안 — 무대·슬롯·한 줄 입력이 한 상태다. 저장소에는 안 들어간다. */
+  const [draft, dispatchDraft] = useReducer(comboDraftReducer, INITIAL_DRAFT);
+  const editingId = draft.editingId;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addMoveOpen, setAddMoveOpen] = useState(false);
@@ -82,7 +83,6 @@ function Screen() {
   /* 호출어 목록의 펼친 줄. 뷰가 쓰지만 동작 추가 시트가 접어야 해서 여기 있다. */
   const [wordsEditing, setWordsEditing] = useState<string | null>(null);
 
-  const [comboHint, setComboHint] = useState('');
   const kb = useKeyboardHeight();
 
   /** 콤보 미리듣기 전용. 훈련 진행 예약과 섞이면 안 된다. */
@@ -110,12 +110,17 @@ function Screen() {
     [labelRef, moveRef]
   );
 
-  const parsed = useMemo(() => parseCombo(draft, alias), [draft, alias]);
-  const dupCombo = parsed.moves.length
-    ? (combos.find((c) => c.id !== editingId && c.moves.join('>') === parsed.moves.join('>')) ?? null)
+  /* 자리가 다 찼을 때만 콤보다. 중복도 그때 본다. */
+  const draftMoves = useMemo(
+    () => (draft.stage === 'slots' && draft.slots.every((s) => s != null) ? (draft.slots as string[]) : null),
+    [draft.stage, draft.slots]
+  );
+  const dupCombo = draftMoves
+    ? (combos.find((c) => c.id !== editingId && c.moves.join('>') === draftMoves.join('>')) ?? null)
     : null;
-  const canSave = parsed.moves.length > 0 && !dupCombo;
-  const saveFabShown = tab === 'combos' && draft.trim().length > 0;
+  const canSave = draftMoves != null && !dupCombo && draft.overflow === 0;
+  /* 저장 버튼은 슬롯 단계에 들어가면 뜬다. 빈 자리가 있어도 뜬다 — 눌러야 이유를 물을 수 있다. */
+  const saveFabShown = tab === 'combos' && draft.stage === 'slots';
   const anyFabShown = saveFabShown || tab === 'words';
 
   /* ---- 소리 ---- */
@@ -155,36 +160,37 @@ function Screen() {
 
   /* ---- 콤보 ---- */
 
-  /** 칩을 지우면 입력창 텍스트가 다시 써진다. 미인식 토큰은 그대로 보존. */
-  const removeChip = (idx: number) => {
-    const kept = parsed.moves.filter((_, i) => i !== idx);
-    setDraft([...kept.map((id) => label(id)), ...parsed.unknown].join(' '));
-    setComboHint('');
-  };
+  const hint = (text: string) => dispatchDraft({ type: 'hint', text });
 
+  /** 죽은 버튼을 두지 않는다 — 안 되는 이유를 순서대로 말한다(기획서 9장). */
   const saveCombo = () => {
-    if (!parsed.moves.length) {
-      setComboHint(
-        draft.trim()
-          ? '적은 말을 못 알아들었어. 아래 목록에서 골라보거나, 호출어 탭에서 동작을 추가해줘.'
-          : `먼저 콤보를 적어줘. 예: ${label('jab')} ${label('jab')} ${label('cross')} ${label('lowkick')}`
+    if (draft.stage !== 'slots') return;
+    const empty = draft.slots.filter((s) => s == null).length;
+    if (draft.overflow > 0) {
+      hint(`두드린 건 ${draft.slots.length}개인데 ${draft.slots.length + draft.overflow}개를 적었어. 다시 두드리거나 줄여줘.`);
+      return;
+    }
+    if (empty > 0) {
+      hint(
+        draft.unknown.length
+          ? '적은 말을 못 알아들었어. 자리를 눌러 골라보거나, 호출어 탭에서 동작을 추가해줘.'
+          : `빈 자리가 ${empty}개야. 자리를 눌러 고르거나 한 줄로 적어줘.`
       );
       return;
     }
     if (dupCombo) {
-      setComboHint(
-        dupCombo.on ? '이미 같은 콤보가 있어. 아래 목록에서 확인해봐.' : '이미 같은 콤보가 있는데 훈련에서 빠져 있어.'
-      );
+      hint(dupCombo.on ? '이미 같은 콤보가 있어. 아래 목록에서 확인해봐.' : '이미 같은 콤보가 있는데 훈련에서 빠져 있어.');
       return;
     }
-    setComboHint('');
+    if (!draftMoves) return;
+    // 리듬이 비어 있으면(자리 하나) 안 싣는다. 없는 것과 있는데 빈 것은 다르다.
+    const rhythm = draft.rhythm.length ? draft.rhythm : undefined;
     if (editingId) {
-      dispatch({ type: 'replaceCombo', id: editingId, moves: parsed.moves });
-      setEditingId(null);
+      dispatch({ type: 'replaceCombo', id: editingId, moves: draftMoves, rhythm });
     } else {
-      dispatch({ type: 'addCombo', moves: parsed.moves });
+      dispatch({ type: 'addCombo', moves: draftMoves, rhythm });
     }
-    setDraft('');
+    dispatchDraft({ type: 'reset' });
     Keyboard.dismiss();
   };
 
@@ -199,16 +205,12 @@ function Screen() {
 
   const editCombo = useCallback(
     (c: Combo) => {
-      setEditingId(c.id);
-      setDraft(c.moves.map(nameOf).join(' '));
+      dispatchDraft({ type: 'edit', combo: c, names: c.moves.map(nameOf) });
       setTab('combos');
     },
     [nameOf]
   );
-  const cancelEdit = () => {
-    setEditingId(null);
-    setDraft('');
-  };
+  const cancelDraft = useCallback(() => dispatchDraft({ type: 'cancel' }), []);
 
   const previewCombo = useCallback(
     (c: Combo) => {
@@ -225,6 +227,20 @@ function Screen() {
     },
     [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef]
   );
+
+  /** 초안 듣기. 채운 자리는 지금 말 속도의 목소리, 빈 자리는 클릭음 — 두드린 모양과 들릴 것을 한 번에. */
+  const listenDraft = useCallback(() => {
+    prime();
+    hush();
+    previewTimers.clearAll();
+    const combo: Combo = { id: 'draft', moves: draft.slots.map((s) => s ?? ''), on: true, rhythm: draft.rhythm };
+    const steps = comboSteps(combo, (id) => resolveBeat(id, beatsRef.current, moveRef.current), stRef.current.tempo);
+    let t = 0;
+    draft.slots.forEach((s, i) => {
+      previewTimers.later(() => (s ? speakMove(s) : voiceRef.current.blip()), t);
+      t += steps[i] ?? 0;
+    });
+  }, [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, voiceRef, draft.slots, draft.rhythm]);
 
   /* ---- 호출어 / 동작 ---- */
 
@@ -303,10 +319,48 @@ function Screen() {
   /* 방금 넣은 동작이 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다. 그 분류로 옮겨준다. */
   const afterAddMove = useCallback((kind: Kind) => setWordKind(kind), []);
 
-  const changeDraft = useCallback((text: string) => {
-    setDraft(text);
-    setComboHint('');
-  }, []);
+  /* 초안을 움직이는 손들. 뷰에 한 벌로 넘긴다. */
+  const tapStage = useCallback((at: number) => {
+    voiceRef.current.tick();
+    dispatchDraft({ type: 'tap', at });
+  }, [voiceRef]);
+  const finishTaps = useCallback(() => dispatchDraft({ type: 'finish' }), []);
+  const retap = useCallback(() => dispatchDraft({ type: 'retap' }), []);
+  const changeDraftText = useCallback((text: string) => dispatchDraft({ type: 'type', text, alias }), [alias]);
+  /* 채워진 자리는 비우고, 빈 자리는 그 자리를 열고 고르기 시트를 띄운다. */
+  const pressSlot = useCallback(
+    (index: number) => {
+      if (draft.slots[index]) {
+        dispatchDraft({ type: 'clear', index });
+        return;
+      }
+      dispatchDraft({ type: 'open', index });
+      openPicker();
+    },
+    [draft.slots, openPicker]
+  );
+  const editor: DraftEditor = useMemo(
+    () => ({
+      onTap: tapStage,
+      onFinish: finishTaps,
+      onCancel: cancelDraft,
+      onRetap: retap,
+      onListen: listenDraft,
+      onTextChange: changeDraftText,
+      onSlotPress: pressSlot,
+    }),
+    [tapStage, finishTaps, cancelDraft, retap, listenDraft, changeDraftText, pressSlot]
+  );
+  /* 고르면 다음 빈 자리로. 마지막을 채우면 시트가 닫힌다(기획서 4.5). */
+  const pickMove = useCallback(
+    (id: string) => {
+      dispatchDraft({ type: 'pick', id });
+      const filled = draft.slots.map((s, i) => (i === draft.cursor ? id : s));
+      if (nextEmpty(filled, draft.cursor) < 0) closePicker();
+    },
+    [draft.slots, draft.cursor, closePicker]
+  );
+  const openSlot = useCallback((index: number) => dispatchDraft({ type: 'open', index }), []);
 
   const setAllCombos = useCallback((on: boolean) => dispatch({ type: 'setAllCombos', on }), [dispatch]);
 
@@ -314,8 +368,7 @@ function Screen() {
   const enableCombo = useCallback(
     (id: string) => {
       dispatch({ type: 'enableCombo', id });
-      setDraft('');
-      setComboHint('');
+      dispatchDraft({ type: 'reset' });
     },
     [dispatch]
   );
@@ -391,15 +444,11 @@ function Screen() {
         <CombosView
           combos={combos}
           draft={draft}
-          onDraftChange={changeDraft}
-          parsed={parsed}
+          editor={editor}
           duplicate={dupCombo}
-          hint={comboHint}
           label={label}
           readyCount={ready}
           bottomPad={scrollPad}
-          onRemoveChip={removeChip}
-          onOpenPicker={openPicker}
           onSetAll={setAllCombos}
           onToggle={toggleCombo}
           onPreview={previewCombo}
@@ -438,7 +487,7 @@ function Screen() {
         <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabRow]} pointerEvents="box-none">
             {editingId ? (
-              <Tap onPress={cancelEdit} accessibilityLabel="수정 취소" style={styles.fabRound}>
+              <Tap onPress={cancelDraft} accessibilityLabel="수정 취소" style={styles.fabRound}>
                 <X size={20} color={C.z400} />
               </Tap>
             ) : null}
@@ -531,12 +580,16 @@ function Screen() {
         onClose={closePicker}
         moves={allMoves}
         label={label}
-        onPick={(id) => {
-          setDraft((prev) => (prev ? prev + ' ' + label(id) : label(id)));
-          setComboHint('');
-        }}
-        chips={<ComboChips moves={parsed.moves} label={label} onRemove={removeChip} />}
-        hasPicked={parsed.moves.length > 0}
+        onPick={pickMove}
+        tray={
+          <SlotRow
+            slots={draft.slots}
+            cursor={draft.cursor}
+            label={label}
+            onPress={openSlot}
+            pressLabel={(i) => `${i + 1}번째 자리로`}
+          />
+        }
       />
       <AddMoveSheet open={addMoveOpen} onClose={closeAddMove} onAdded={afterAddMove} />
       <SettingsSheet

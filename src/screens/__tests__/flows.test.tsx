@@ -55,6 +55,14 @@ beforeEach(() => {
   resetMaterial();
 });
 
+
+/** 무대를 n번 두드리고 완료한다. 간격 300ms — 값 자체는 순수 테스트가 본다. */
+const tapCombo = (n: number) => {
+  const stage = screen.getByLabelText('두드리는 무대');
+  for (let i = 0; i < n; i++) fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 1000 + i * 300 } });
+  fireEvent.press(screen.getByText('완료'));
+};
+
 describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
   it('액센트 링이 둘러졌다가 2.4초 뒤 풀린다', async () => {
     jest.useFakeTimers();
@@ -67,6 +75,7 @@ describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
     fireEvent.press(screen.getByLabelText('콤보'));
 
     // SEED에 있는 콤보를 그대로 친다
+    tapCombo(3);
     fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 스트레이트 로우킥');
     await act(async () => {});
     fireEvent.press(screen.getByText('목록에서 보기'));
@@ -175,9 +184,11 @@ describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
 
     // 그 동작으로 콤보 두 개를 만든다
     fireEvent.press(screen.getByLabelText('콤보'));
+    tapCombo(2);
     fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 엘보');
     fireEvent.press(screen.getByText('콤보 저장'));
     await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
+    tapCombo(1);
     fireEvent.changeText(screen.getByPlaceholderText(/잽/), '엘보');
     fireEvent.press(screen.getByText('콤보 저장'));
     await waitFor(() => expect(screen.getByText('콤보 6개 · 6개 사용')).toBeTruthy());
@@ -320,6 +331,7 @@ describe('저장소 — 껐다 켜도 남는다', () => {
     await act(async () => {});
 
     fireEvent.press(screen.getByLabelText('콤보'));
+    tapCombo(3);
     fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 잽 로우킥');
     await act(async () => {});
     fireEvent.press(screen.getByText('콤보 저장'));
@@ -345,8 +357,9 @@ describe('저장소 — 껐다 켜도 남는다', () => {
     );
     await act(async () => {});
     fireEvent.press(screen.getByLabelText('콤보'));
-    // 넣은 콤보가 목록에 남아 있고
+    // 넣은 콤보가 목록에 남아 있고, 두드린 리듬도 같이 남는다(300ms 간격 둘)
     await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
+    expect(saved<{ rhythm?: number[] }[]>('sbc:combos')[0]?.rhythm).toEqual([0.3, 0.3]);
     // 바꾼 호출어도 남아서 칩에 '잽'이 아니라 '원'으로 뜬다
     expect(screen.getAllByText('원').length).toBeGreaterThan(0);
     expect(screen.queryByText('잽')).toBeNull();

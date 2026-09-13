@@ -132,6 +132,9 @@ export const BASE_MOVES: Move[] = [
   { id: 'pivot', name: '피벗', num: null, numCall: null, beat: 0.5, kind: 'move', aliases: ['피벗', '피봇', 'pivot'] },
 ];
 
+/** 콤보 하나에 들어가는 동작 수 상한. 두드리는 무대가 이 수에서 더 안 센다(기획서 4.4). */
+export const COMBO_MAX_MOVES = 16;
+
 export const KIND_LABEL: Record<Kind, string> = { punch: '펀치', kick: '킥', def: '방어', move: '풋워크' };
 export const KINDS: Kind[] = ['punch', 'kick', 'def', 'move'];
 

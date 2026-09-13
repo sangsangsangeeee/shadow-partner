@@ -54,9 +54,9 @@ src/
   screens/ShadowCoach/        `/` 라우트. 유일한 라우트다.
     index.tsx   화면 조립. 세 뷰를 갈아 끼우고 떠 있는 층과 시트를 얹는다.
     MaterialContext.tsx  자료의 파생 조회를 화면 안에서 한 번만 계산한다
-    hooks/      useMaterial(자료) · useTraining(라운드) · useCallouts(호출어)
+    hooks/      useMaterial(자료) · useTraining(라운드) · useCallouts(호출어) · comboDraft(초안 리듀서)
     views/      TrainView · CombosView · WordsView
-    parts/      카드 · 줄 · 시트 셋(설정 · 동작 고르기 · 동작 추가) · 완료 겹침
+    parts/      카드 · 줄 · 무대 · 자리 줄 · 시트 셋(설정 · 동작 고르기 · 동작 추가) · 완료 겹침
 ```
 
 **하위 화면은 라우트가 아니라 바텀시트다.** 라우트는 `/` 하나뿐이다 —

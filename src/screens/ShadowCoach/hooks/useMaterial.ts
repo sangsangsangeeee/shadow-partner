@@ -13,8 +13,8 @@ export type MaterialState = Material & {
 export type MaterialAction =
   | { type: 'hydrate'; value: Partial<Material> }
   | { type: 'patchSettings'; patch: Partial<Settings> }
-  | { type: 'addCombo'; moves: string[] }
-  | { type: 'replaceCombo'; id: string; moves: string[] }
+  | { type: 'addCombo'; moves: string[]; rhythm?: number[] }
+  | { type: 'replaceCombo'; id: string; moves: string[]; rhythm?: number[] }
   | { type: 'toggleCombo'; id: string }
   | { type: 'enableCombo'; id: string }
   | { type: 'setAllCombos'; on: boolean }
@@ -92,12 +92,12 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
     }
 
     case 'addCombo':
-      return { ...state, combos: [{ id: uid(), moves: action.moves, on: true }, ...state.combos] };
+      return { ...state, combos: [{ id: uid(), moves: action.moves, on: true, rhythm: action.rhythm }, ...state.combos] };
 
     case 'replaceCombo':
       return {
         ...state,
-        combos: state.combos.map((c) => (c.id === action.id ? { ...c, moves: action.moves } : c)),
+        combos: state.combos.map((c) => (c.id === action.id ? { ...c, moves: action.moves, rhythm: action.rhythm } : c)),
       };
 
     case 'toggleCombo':

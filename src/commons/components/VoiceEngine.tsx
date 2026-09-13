@@ -126,6 +126,8 @@ export interface CoachVoice {
   /** 10초 전 경고. 소리와 진동이 같이 나간다. */
   clapper: () => void;
   blip: () => void;
+  /** 손이 닿았다. 두드리는 무대가 탭마다 부른다 — 소리는 안 낸다. */
+  tick: () => void;
   voices: VoiceOption[];
 }
 
@@ -243,6 +245,7 @@ export function useCoachVoice(): CoachVoice {
         }
       },
       blip: () => tone(660, 0.14, 0, 0.2),
+      tick: () => buzz('tickMedium', 0),
       voices,
     };
   }, [send, onMessage, buzz, voices]);
