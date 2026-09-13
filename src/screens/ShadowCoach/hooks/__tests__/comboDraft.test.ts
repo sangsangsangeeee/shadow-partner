@@ -18,7 +18,8 @@ jest.mock('@apps-in-toss/native-modules', () => ({
  */
 const alias = buildAlias([], {});
 const run = (...actions: DraftAction[]): ComboDraft => actions.reduce(r, INITIAL_DRAFT);
-const taps = (...at: number[]): DraftAction[] => at.map((a) => ({ type: 'tap', at: a }));
+/** 첫 터치는 마이크를 켠다. 두드림은 그다음부터다 — 그래서 arm이 앞에 붙는다. */
+const taps = (...at: number[]): DraftAction[] => [{ type: 'arm' }, ...at.map((a) => ({ type: 'tap' as const, at: a, wall: a }))];
 
 describe('두드리기', () => {
   it('첫 터치가 시작이고, 완료하면 탭 수만큼 빈 자리와 하나 적은 리듬이 생긴다', () => {
@@ -30,7 +31,9 @@ describe('두드리기', () => {
   });
 
   it('한 번도 안 두드리고 완료하면 아무 일도 없다', () => {
-    expect(run({ type: 'finish' })).toEqual(INITIAL_DRAFT);
+    const s = run({ type: 'arm' }, { type: 'finish' });
+    expect(s.stage).toBe('idle');
+    expect(s.slots).toEqual([]);
   });
 
   it('두드리다 취소하면 두드린 것만 버린다', () => {
@@ -41,18 +44,18 @@ describe('두드리기', () => {
   it('다시 두드리면 동작은 남기고 자리 수만 바뀐다', () => {
     const base = run(...taps(0, 300, 600), { type: 'finish' }, { type: 'type', text: '잽 잽 스트레이트', alias });
     const fewer = run(...taps(0, 300, 600), { type: 'finish' }, { type: 'type', text: '잽 잽 스트레이트', alias },
-      { type: 'retap' }, ...taps(0, 500), { type: 'finish' });
+      ...taps(0, 500), { type: 'finish' });
     expect(base.slots).toEqual(['jab', 'jab', 'cross']);
     expect(fewer.slots).toEqual(['jab', 'jab']);
     expect(fewer.rhythm).toEqual([0.5]);
 
-    const more = [...taps(0, 200, 400, 600)].reduce(r, { ...base, stage: 'tapping', taps: [] });
+    const more = taps(0, 200, 400, 600).reduce(r, base);
     expect(r(more, { type: 'finish' }).slots).toEqual(['jab', 'jab', 'cross', null]);
   });
 
   it('다시 두드리다 취소하면 자리와 동작이 그대로다', () => {
     const s = run(...taps(0, 300), { type: 'finish' }, { type: 'type', text: '잽 잽', alias },
-      { type: 'retap' }, ...taps(0), { type: 'cancel' });
+      ...taps(0), { type: 'cancel' });
     expect(s.stage).toBe('slots');
     expect(s.slots).toEqual(['jab', 'jab']);
   });
@@ -129,6 +132,73 @@ describe('수정', () => {
   });
 
   it('슬롯 단계에서 취소하면 수정 중이던 것까지 버린다', () => {
+    const s = run({ type: 'edit', combo: { id: 'c1', moves: ['jab'], on: true }, names: ['잽'] }, { type: 'cancel' });
+    expect(s).toEqual(INITIAL_DRAFT);
+  });
+});
+
+/*
+ * 마이크는 늦게 답한다. 켜 달라고 한 뒤 켜지고, 멈춰 달라고 한 뒤 본체가 온다.
+ * 그 사이에 사람이 취소하거나 다시 두드릴 수 있으므로, 어느 답을 받고 어느 답을 버릴지가 여기 있다.
+ */
+describe('녹음', () => {
+  it('첫 터치가 마이크를 켜고, 켜진 시각과 첫 두드림의 차가 offset이 된다', () => {
+    const s = run(
+      { type: 'arm' },
+      { type: 'recStarted', at: 1000 },
+      { type: 'tap', at: 5, wall: 1400 },
+      { type: 'tap', at: 305, wall: 1700 },
+      { type: 'finish' },
+      { type: 'recorded', data: 'data:audio/mp4;base64,AAAA', duration: 2.1 }
+    );
+    expect(s.stage).toBe('slots');
+    expect(s.recording).toBe('off');
+    expect(s.clip).toEqual({ data: 'data:audio/mp4;base64,AAAA', duration: 2.1, offset: 0.4 });
+    expect(s.rhythm).toEqual([0.3]);
+  });
+
+  it('마이크가 켜지기 전에 완료해도 본체는 받는다 — 켜진 시각을 모르면 offset은 0', () => {
+    const s = run({ type: 'arm' }, { type: 'tap', at: 0, wall: 1000 }, { type: 'finish' },
+      { type: 'recorded', data: 'd', duration: 1 });
+    expect(s.clip?.offset).toBe(0);
+  });
+
+  it('마이크를 못 쓰면 두드리기는 그대로 되고 녹음만 없다', () => {
+    const s = run({ type: 'arm' }, { type: 'recFailed', message: 'NotAllowedError' },
+      { type: 'tap', at: 0, wall: 0 }, { type: 'tap', at: 300, wall: 300 }, { type: 'finish' });
+    // 완료하면 마이크 상태는 접힌다. 녹음이 없다는 건 clip이 말한다.
+    expect(s.recording).toBe('off');
+    expect(s.slots).toEqual([null, null]);
+    expect(s.clip).toBeNull();
+  });
+
+  // 취소한 녹음의 본체가 뒤늦게 오면 받으면 안 된다 — 지난 자리에 엉뚱한 목소리가 붙는다.
+  it('취소한 뒤 도착한 본체는 버린다', () => {
+    const s = run(...taps(0, 300), { type: 'finish' }, { type: 'type', text: '잽 잽', alias },
+      { type: 'arm' }, { type: 'recStarted', at: 0 }, { type: 'tap', at: 0, wall: 0 }, { type: 'cancel' },
+      { type: 'recorded', data: 'late', duration: 1 });
+    expect(s.stage).toBe('slots');
+    expect(s.clip).toBeNull();
+    expect(s.slots).toEqual(['jab', 'jab']);
+  });
+
+  it('다시 두드리면 지난 녹음은 버리고 새로 시도한 것으로 표시한다', () => {
+    const first = run(...taps(0, 300), { type: 'finish' }, { type: 'recorded', data: 'one', duration: 1 });
+    expect(first.clip?.data).toBe('one');
+    const again = r(first, { type: 'arm' });
+    expect(again.clip).toBeNull();
+    expect(again.reRecorded).toBe(true);
+    expect(again.session).toBe(first.session + 1);
+  });
+
+  it('수정으로 들어오면 새로 두드리기 전까지는 있던 녹음을 건드린 게 아니다', () => {
+    const s = run({ type: 'edit', combo: { id: 'c1', moves: ['jab'], on: true, clip: { offset: 0.2, ms: 1500 } }, names: ['잽'] });
+    expect(s.reRecorded).toBe(false);
+  });
+});
+
+describe('수정 — 취소', () => {
+  it('취소하면 수정 중이던 것까지 버린다', () => {
     const s = run({ type: 'edit', combo: { id: 'c1', moves: ['jab'], on: true }, names: ['잽'] }, { type: 'cancel' });
     expect(s).toEqual(INITIAL_DRAFT);
   });

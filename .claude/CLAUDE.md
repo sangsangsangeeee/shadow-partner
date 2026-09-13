@@ -46,7 +46,7 @@ src/
   pages/                      라우트 정의. _layout(껍데기) · screenOptions(공통 화면 옵션)
   commons/                    화면에 매이지 않은 것
     constants/  colors · layout · moves · typography
-    components/ 렌더 패턴
+    components/ 렌더 패턴 · VoiceEngine(숨은 WebView — TTS·소리·햅틱·녹음)
     hooks/      범용 훅
     utils/      파서 · 저장소 · 포맷 · 링 기하 · 이름 해석
     types.ts    도메인 모델

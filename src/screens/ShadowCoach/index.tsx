@@ -9,7 +9,7 @@ import {
   TOAST_MS,
   TOUCH,
 } from '../../commons/constants';
-import { comboSteps, resolveBeat, resolveName } from '../../commons/utils';
+import { clipPlan, comboSteps, resolveBeat, resolveName } from '../../commons/utils';
 import {
   Check,
   ListOrdered,
@@ -33,6 +33,7 @@ import { AddMoveSheet, DoneOverlay, MovePickerSheet, SettingsSheet, SlotRow } fr
 import { CombosView, TrainView, WordsView, type DraftEditor } from './views';
 import type {
   Beats,
+  Clips,
   Combo,
   Kind,
   Labels,
@@ -60,7 +61,7 @@ function Screen() {
 
   /* 저장되는 훈련 자료는 전부 한 리듀서에 있다. 별도 화면이 된 동작 고르기·추가와도 나눠 쓴다. */
   const { state: material, dispatch, moveMap, alias, allMoves, label, beatOf } = useMaterialContext();
-  const { combos, settings, labels, customMoves, beats, undo } = material;
+  const { combos, settings, labels, customMoves, beats, clips, undo } = material;
 
   /*
    * 토스트를 갈아 끼울 열쇠. 닫힌 뒤에도 마지막 번호를 들고 있는다 —
@@ -145,7 +146,8 @@ function Screen() {
   /* ---- 훈련 ---- */
 
   /* 아래 층은 콤보를 소리로 푸는 일만, 위 층은 라운드를 굴리는 일만 안다. */
-  const callouts = useCallouts({ settings, moveMap, beats, speakMove, hush });
+  const playClip = useCallback((id: string, play: Parameters<typeof voice.playClip>[1]) => voiceRef.current.playClip(id, play), []);
+  const callouts = useCallouts({ settings, moveMap, beats, clips, speakMove, playClip, hush });
   const training = useTraining({ settings, combos, callouts, voice, speak });
 
   const { stats } = callouts;
@@ -154,6 +156,18 @@ function Screen() {
   // 타이머 묶음·만료 상태·화면 잠금은 각자의 훅이 언마운트에서 스스로 치운다.
   useEffect(() => () => voiceRef.current.hush(), [voiceRef]);
 
+  /* 녹음 본체를 엔진에 풀어 둔다. 바뀐 것만 — 시작할 때 전부, 그 뒤엔 넣고 뺀 것만. */
+  const loadedClipsRef = useRef<Clips>({});
+  useEffect(() => {
+    const was = loadedClipsRef.current;
+    Object.keys({ ...was, ...clips }).forEach((id) => {
+      if (clips[id] === was[id]) return;
+      if (clips[id]) voiceRef.current.loadClip(id, clips[id]);
+      else voiceRef.current.dropClip(id);
+    });
+    loadedClipsRef.current = clips;
+  }, [clips, voiceRef]);
+
   /* ---- 음성 입력 (보류) ----
      웹판에는 Web Speech API 기반 콤보 받아쓰기가 주석으로 남아 있었다.
      RN에는 대응 API가 없어 네이티브 음성 인식 모듈이 필요하다. 기획이 정리되면 되살린다. */
@@ -161,6 +175,24 @@ function Screen() {
   /* ---- 콤보 ---- */
 
   const hint = (text: string) => dispatchDraft({ type: 'hint', text });
+
+  /* 마이크 쪽에서 온 일을 초안에 넣는다. 번호가 같으면 이미 넣은 것이다. */
+  const recEvent = voice.recordEvent;
+  const recSeenRef = useRef(0);
+  useEffect(() => {
+    if (!recEvent || recEvent.seq === recSeenRef.current) return;
+    recSeenRef.current = recEvent.seq;
+    if (recEvent.kind === 'started') dispatchDraft({ type: 'recStarted', at: recEvent.at });
+    else if (recEvent.kind === 'done') dispatchDraft({ type: 'recorded', data: recEvent.data, duration: recEvent.duration });
+    else dispatchDraft({ type: 'recFailed', message: recEvent.message });
+  }, [recEvent]);
+
+  /* 새 녹음은 저장 전에도 들어봐야 한다. 초안 자리에 풀어 둔다. */
+  const draftClip = draft.clip;
+  useEffect(() => {
+    if (draftClip) voiceRef.current.loadClip('draft', draftClip.data);
+    else voiceRef.current.dropClip('draft');
+  }, [draftClip, voiceRef]);
 
   /** 죽은 버튼을 두지 않는다 — 안 되는 이유를 순서대로 말한다(기획서 9장). */
   const saveCombo = () => {
@@ -185,10 +217,14 @@ function Screen() {
     if (!draftMoves) return;
     // 리듬이 비어 있으면(자리 하나) 안 싣는다. 없는 것과 있는데 빈 것은 다르다.
     const rhythm = draft.rhythm.length ? draft.rhythm : undefined;
+    const clip = draft.clip
+      ? { meta: { offset: draft.clip.offset, ms: Math.round(draft.clip.duration * 1000) }, data: draft.clip.data }
+      : undefined;
     if (editingId) {
-      dispatch({ type: 'replaceCombo', id: editingId, moves: draftMoves, rhythm });
+      // 다시 두드렸는데 녹음이 안 됐으면 있던 녹음은 리듬과 안 맞는다 — 버린다. 태그만 고쳤으면 둔다.
+      dispatch({ type: 'replaceCombo', id: editingId, moves: draftMoves, rhythm, clip: clip ?? (draft.reRecorded ? null : undefined) });
     } else {
-      dispatch({ type: 'addCombo', moves: draftMoves, rhythm });
+      dispatch({ type: 'addCombo', moves: draftMoves, rhythm, clip });
     }
     dispatchDraft({ type: 'reset' });
     Keyboard.dismiss();
@@ -210,14 +246,21 @@ function Screen() {
     },
     [nameOf]
   );
-  const cancelDraft = useCallback(() => dispatchDraft({ type: 'cancel' }), []);
 
+  const clipsRef = useLatestRef<Clips>(clips);
   const previewCombo = useCallback(
     (c: Combo) => {
       prime();
       hush();
       previewTimers.clearAll();
-      const steps = comboSteps(c, (id) => resolveBeat(id, beatsRef.current, moveRef.current), stRef.current.tempo);
+      const beatOf = (id: string) => resolveBeat(id, beatsRef.current, moveRef.current);
+      const tempo = stRef.current.tempo;
+      if (c.clip && clipsRef.current[c.id]) {
+        const plan = clipPlan(c, beatOf, tempo);
+        voiceRef.current.playClip(c.id, { from: plan.from, duration: plan.duration, rate: tempo });
+        return;
+      }
+      const steps = comboSteps(c, beatOf, tempo);
       let t = 0;
       c.moves.forEach((mid, i) => {
         if (!moveRef.current[mid]) return;
@@ -225,22 +268,38 @@ function Screen() {
         t += steps[i] ?? 0;
       });
     },
-    [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef]
+    [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, clipsRef, voiceRef]
   );
 
-  /** 초안 듣기. 채운 자리는 지금 말 속도의 목소리, 빈 자리는 클릭음 — 두드린 모양과 들릴 것을 한 번에. */
+  /**
+   * 초안 듣기 — 훈련에서 들릴 그대로. 녹음이 있으면 녹음, 없으면 채운 자리는 지금 말 속도의 TTS,
+   * 빈 자리는 클릭음. 수정 중이고 새로 안 두드렸으면 저장된 녹음이다.
+   */
   const listenDraft = useCallback(() => {
     prime();
     hush();
     previewTimers.clearAll();
+    const beatOf = (id: string) => resolveBeat(id, beatsRef.current, moveRef.current);
+    const tempo = stRef.current.tempo;
     const combo: Combo = { id: 'draft', moves: draft.slots.map((s) => s ?? ''), on: true, rhythm: draft.rhythm };
-    const steps = comboSteps(combo, (id) => resolveBeat(id, beatsRef.current, moveRef.current), stRef.current.tempo);
+    if (draft.clip) {
+      const plan = clipPlan({ ...combo, clip: { offset: draft.clip.offset, ms: draft.clip.duration * 1000 } }, beatOf, tempo);
+      voiceRef.current.playClip('draft', { from: plan.from, duration: plan.duration, rate: tempo });
+      return;
+    }
+    const stored = editingId ? combos.find((c) => c.id === editingId) : undefined;
+    if (stored?.clip && !draft.reRecorded && clipsRef.current[stored.id]) {
+      const plan = clipPlan({ ...stored, moves: combo.moves, rhythm: combo.rhythm }, beatOf, tempo);
+      voiceRef.current.playClip(stored.id, { from: plan.from, duration: plan.duration, rate: tempo });
+      return;
+    }
+    const steps = comboSteps(combo, beatOf, tempo);
     let t = 0;
     draft.slots.forEach((s, i) => {
       previewTimers.later(() => (s ? speakMove(s) : voiceRef.current.blip()), t);
       t += steps[i] ?? 0;
     });
-  }, [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, voiceRef, draft.slots, draft.rhythm]);
+  }, [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, voiceRef, clipsRef, combos, editingId, draft.slots, draft.rhythm, draft.clip, draft.reRecorded]);
 
   /* ---- 호출어 / 동작 ---- */
 
@@ -320,12 +379,37 @@ function Screen() {
   const afterAddMove = useCallback((kind: Kind) => setWordKind(kind), []);
 
   /* 초안을 움직이는 손들. 뷰에 한 벌로 넘긴다. */
-  const tapStage = useCallback((at: number) => {
-    voiceRef.current.tick();
-    dispatchDraft({ type: 'tap', at });
-  }, [voiceRef]);
-  const finishTaps = useCallback(() => dispatchDraft({ type: 'finish' }), []);
-  const retap = useCallback(() => dispatchDraft({ type: 'retap' }), []);
+  const draftRef = useLatestRef(draft);
+  /** 첫 터치는 마이크를 켠다. 그다음부터 두드림이다(기획서 4.4). */
+  const arm = useCallback(() => {
+    prime();
+    dispatchDraft({ type: 'arm' });
+    voiceRef.current.recordStart();
+  }, [prime, voiceRef]);
+  const tapStage = useCallback(
+    (at: number) => {
+      if (draftRef.current.stage !== 'tapping') {
+        arm();
+        return;
+      }
+      voiceRef.current.tick();
+      dispatchDraft({ type: 'tap', at, wall: Date.now() });
+    },
+    [arm, draftRef, voiceRef]
+  );
+  /** 마이크가 켜져 있거나 켜는 중이면 놓아준다. 본체는 finish 뒤에만 받는다. */
+  const releaseMic = useCallback(() => {
+    const r = draftRef.current.recording;
+    if (r === 'on' || r === 'starting') voiceRef.current.recordStop();
+  }, [draftRef, voiceRef]);
+  const finishTaps = useCallback(() => {
+    releaseMic();
+    dispatchDraft({ type: 'finish' });
+  }, [releaseMic]);
+  const cancelDraft = useCallback(() => {
+    releaseMic();
+    dispatchDraft({ type: 'cancel' });
+  }, [releaseMic]);
   const changeDraftText = useCallback((text: string) => dispatchDraft({ type: 'type', text, alias }), [alias]);
   /* 채워진 자리는 비우고, 빈 자리는 그 자리를 열고 고르기 시트를 띄운다. */
   const pressSlot = useCallback(
@@ -344,12 +428,12 @@ function Screen() {
       onTap: tapStage,
       onFinish: finishTaps,
       onCancel: cancelDraft,
-      onRetap: retap,
+      onRetap: arm,
       onListen: listenDraft,
       onTextChange: changeDraftText,
       onSlotPress: pressSlot,
     }),
-    [tapStage, finishTaps, cancelDraft, retap, listenDraft, changeDraftText, pressSlot]
+    [tapStage, finishTaps, cancelDraft, arm, listenDraft, changeDraftText, pressSlot]
   );
   /* 고르면 다음 빈 자리로. 마지막을 채우면 시트가 닫힌다(기획서 4.5). */
   const pickMove = useCallback(

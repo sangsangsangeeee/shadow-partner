@@ -185,4 +185,6 @@ export const STORAGE_KEYS = {
   labels: 'sbc:labels',
   moves: 'sbc:moves',
   beats: 'sbc:beats',
+  /** 콤보별 녹음. 뒤에 콤보 id가 붙는다. */
+  clip: 'sbc:clip:',
 } as const;

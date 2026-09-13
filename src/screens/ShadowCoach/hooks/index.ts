@@ -6,6 +6,7 @@ export {
   type ComboDraft,
   type DraftAction,
   type DraftStage,
+  type Recording,
 } from './comboDraft';
 export {
   useMaterial,

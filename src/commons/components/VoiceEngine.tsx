@@ -90,13 +90,93 @@ const ENGINE_HTML = `<!doctype html><html><head><meta charset="utf-8">
     } catch (e) {}
   }
 
+  /*
+   * 녹음과 되틀기. 토스 모듈에 마이크가 없어 WebView의 getUserMedia로 잡는다(기획서 4.4·12장).
+   * 녹음 본체는 dataURL로 앱에 넘기고, 재생용으로는 여기서 AudioBuffer로 풀어 id별로 들고 있는다.
+   */
+  var recorder = null, chunks = [], clips = {}, playing = [];
+  function decode(dataUrl, ok, fail) {
+    if (!ctx) { initAudio(); }
+    if (!ctx) { fail('no-ctx'); return; }
+    try {
+      var b64 = dataUrl.split(',')[1] || '';
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      ctx.decodeAudioData(bytes.buffer, ok, function (err) { fail('decode:' + String((err && err.name) || err)); });
+    } catch (e) { fail(String(e)); }
+  }
+  function recordStart() {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+        post({ t: 'recordError', message: 'no-api' }); return;
+      }
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        chunks = [];
+        var mime = '';
+        var cands = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'];
+        for (var i = 0; i < cands.length; i++) {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(cands[i])) { mime = cands[i]; break; }
+        }
+        recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = function () {
+          stream.getTracks().forEach(function (t) { t.stop(); });
+          var blob = new Blob(chunks, { type: recorder.mimeType || mime });
+          var fr = new FileReader();
+          fr.onload = function () {
+            var data = fr.result;
+            // 길이는 풀어 봐야 안다. 못 풀면 틀 수도 없으니 실패로 친다.
+            decode(data, function (audio) { post({ t: 'recorded', data: data, duration: audio.duration, size: blob.size }); },
+              function (m) { post({ t: 'recordError', message: m }); });
+          };
+          fr.onerror = function () { post({ t: 'recordError', message: 'read' }); };
+          fr.readAsDataURL(blob);
+        };
+        recorder.start();
+        post({ t: 'recStarted' });
+      }).catch(function (err) { post({ t: 'recordError', message: String((err && err.name) || err) }); });
+    } catch (e) { post({ t: 'recordError', message: String(e) }); }
+  }
+  function recordStop() {
+    try { if (recorder && recorder.state !== 'inactive') { recorder.stop(); } } catch (e) {}
+  }
+  function loadClip(id, dataUrl) {
+    decode(dataUrl, function (audio) { clips[id] = audio; }, function (m) { post({ t: 'clipError', id: id, message: m }); });
+  }
+  function dropClip(id) { delete clips[id]; }
+  function stopClips() {
+    playing.forEach(function (src) { try { src.stop(); } catch (e) {} });
+    playing = [];
+  }
+  /* from·duration은 녹음 기준 초. 템포는 재생 속도라 그만큼 더 많은 녹음이 같은 시간에 흐른다. */
+  function playClip(id, delay, from, duration, rate) {
+    if (!ctx) { initAudio(); }
+    var buf = clips[id];
+    if (!ctx || !buf) return;
+    try {
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = rate || 1;
+      src.connect(ctx.destination);
+      src.start(ctx.currentTime + (delay || 0), from || 0, duration * (rate || 1));
+      playing.push(src);
+      src.onended = function () { playing = playing.filter(function (x) { return x !== src; }); };
+    } catch (e) {}
+  }
+
   window.__sc = function (raw) {
     var m;
     try { m = JSON.parse(raw); } catch (e) { return; }
     if (m.t === 'init') { initAudio(); reportVoices(); }
     else if (m.t === 'speak') { speak(m.text, m.rate, m.voiceURI); }
-    else if (m.t === 'cancel') { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    else if (m.t === 'cancel') { try { window.speechSynthesis.cancel(); } catch (e) {} stopClips(); }
     else if (m.t === 'tone') { tone(m.freq, m.dur, m.delay, m.gain); }
+    else if (m.t === 'recordStart') { recordStart(); }
+    else if (m.t === 'recordStop') { recordStop(); }
+    else if (m.t === 'loadClip') { loadClip(m.id, m.data); }
+    else if (m.t === 'dropClip') { dropClip(m.id); }
+    else if (m.t === 'playClip') { playClip(m.id, m.delay, m.from, m.duration, m.rate); }
   };
 
   try { if (window.speechSynthesis) { window.speechSynthesis.onvoiceschanged = reportVoices; } } catch (e) {}
@@ -105,13 +185,27 @@ const ENGINE_HTML = `<!doctype html><html><head><meta charset="utf-8">
 })();
 </script></body></html>`;
 
-const ENGINE_SOURCE = { html: ENGINE_HTML };
+/* getUserMedia는 보안 컨텍스트에서만 산다. about:blank 대신 localhost를 출처로 준다. */
+const ENGINE_SOURCE = { html: ENGINE_HTML, baseUrl: 'https://localhost' };
 
 type Command =
   | { t: 'init' }
   | { t: 'cancel' }
   | { t: 'speak'; text: string; rate: number; voiceURI: string }
-  | { t: 'tone'; freq: number; dur: number; delay: number; gain: number };
+  | { t: 'tone'; freq: number; dur: number; delay: number; gain: number }
+  | { t: 'recordStart' }
+  | { t: 'recordStop' }
+  | { t: 'loadClip'; id: string; data: string }
+  | { t: 'dropClip'; id: string }
+  | { t: 'playClip'; id: string; delay: number; from: number; duration: number; rate: number };
+
+/** 녹음 쪽에서 올라오는 일. 번호가 오를 때마다 새 일이다 — 같은 종류가 연달아 와도 구분된다. */
+export type RecordEvent =
+  | { seq: number; kind: 'started'; at: number }
+  | { seq: number; kind: 'done'; data: string; duration: number }
+  | { seq: number; kind: 'error'; message: string };
+
+export type ClipPlay = { from: number; duration: number; rate: number; delay?: number };
 
 export interface CoachVoice {
   /** 화면 어딘가에 한 번 그려두면 된다. 보이지 않는다. */
@@ -129,6 +223,15 @@ export interface CoachVoice {
   /** 손이 닿았다. 두드리는 무대가 탭마다 부른다 — 소리는 안 낸다. */
   tick: () => void;
   voices: VoiceOption[];
+  /** 마이크를 켠다. 켜지면 recordEvent가 started로, 못 켜면 error로 온다. */
+  recordStart: () => void;
+  /** 녹음을 멈춘다. 본체는 recordEvent가 done으로 들고 온다. */
+  recordStop: () => void;
+  recordEvent: RecordEvent | null;
+  /** 녹음 본체를 엔진에 풀어 둔다. 틀기 전에 한 번. */
+  loadClip: (id: string, data: string) => void;
+  dropClip: (id: string) => void;
+  playClip: (id: string, play: ClipPlay) => void;
 }
 
 export function useCoachVoice(): CoachVoice {
@@ -136,6 +239,8 @@ export function useCoachVoice(): CoachVoice {
   const readyRef = useRef(false);
   const queueRef = useRef<string[]>([]);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [recordEvent, setRecordEvent] = useState<RecordEvent | null>(null);
+  const recSeq = useRef(0);
 
   const run = useCallback((js: string) => {
     try {
@@ -182,7 +287,21 @@ export function useCoachVoice(): CoachVoice {
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
     try {
-      const m = JSON.parse(e.nativeEvent.data) as { t?: string; voices?: VoiceOption[] };
+      const m = JSON.parse(e.nativeEvent.data) as {
+        t?: string;
+        voices?: VoiceOption[];
+        message?: string;
+        data?: string;
+        duration?: number;
+      };
+      if (m.t === 'recStarted') {
+        // 첫 두드림과 맞출 시계. 브리지 지연은 몇 ms라 여기서 잰다.
+        setRecordEvent({ seq: (recSeq.current += 1), kind: 'started', at: Date.now() });
+      } else if (m.t === 'recorded' && typeof m.data === 'string') {
+        setRecordEvent({ seq: (recSeq.current += 1), kind: 'done', data: m.data, duration: m.duration ?? 0 });
+      } else if (m.t === 'recordError') {
+        setRecordEvent({ seq: (recSeq.current += 1), kind: 'error', message: m.message ?? '?' });
+      }
       if (m.t === 'ready') {
         readyRef.current = true;
         const pending = queueRef.current;
@@ -219,6 +338,7 @@ export function useCoachVoice(): CoachVoice {
             mediaPlaybackRequiresUserAction={false}
             allowsInlineMediaPlayback
             androidLayerType="software"
+            mediaCapturePermissionGrantType="grant"
             style={styles.engine}
             containerStyle={styles.engine}
           />
@@ -248,8 +368,15 @@ export function useCoachVoice(): CoachVoice {
       // tickMedium은 기기에서 손맛이 없었다. 벨과 같은 세기로 올린다.
       tick: () => buzz('basicMedium', 0),
       voices,
+      recordStart: () => send({ t: 'recordStart' }),
+      recordStop: () => send({ t: 'recordStop' }),
+      recordEvent,
+      loadClip: (id, data) => send({ t: 'loadClip', id, data }),
+      dropClip: (id) => send({ t: 'dropClip', id }),
+      playClip: (id, play) =>
+        send({ t: 'playClip', id, delay: play.delay ?? 0, from: play.from, duration: play.duration, rate: play.rate }),
     };
-  }, [send, onMessage, buzz, voices]);
+  }, [send, onMessage, buzz, voices, recordEvent]);
 }
 
 const styles = StyleSheet.create({

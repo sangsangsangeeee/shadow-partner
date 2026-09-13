@@ -24,7 +24,19 @@ export interface Combo {
    * 없으면 동작마다 정해진 길이를 따른다. 마지막 동작은 두드려서 얻을 수 없으므로 언제나 그렇다.
    */
   rhythm?: number[];
+  /** 두드리면서 말한 녹음. 본체는 Clips에 따로 있다 — 여기는 자리만. */
+  clip?: ClipMeta;
 }
+
+export interface ClipMeta {
+  /** 첫 두드림이 녹음 시작에서 몇 초 뒤인가. 재생할 때 그만큼 앞을 잘라 첫 동작에 맞춘다. */
+  offset: number;
+  /** 녹음 길이(ms). */
+  ms: number;
+}
+
+/** 콤보별 녹음 본체(dataURL). 콤보 목록과 따로 저장한다 — 2초에 50KB라 같이 두면 켜고 끌 때마다 전부 다시 쓴다. */
+export type Clips = Record<string, string>;
 
 /** 호출어 덮어쓰기. 기본값을 대체하지 않고 위에 얹는다. */
 export type Labels = Record<string, string>;
@@ -69,6 +81,7 @@ export interface Material {
   labels: Labels;
   customMoves: Move[];
   beats: Beats;
+  clips: Clips;
 }
 
 /**

@@ -168,6 +168,7 @@ export function SettingsSheet({ open, onClose, settings, onChange, running, voic
           <Tap onPress={onTestSound} style={styles.testBtn}>
             <Typo level="caption" color={C.z400}>소리 테스트</Typo>
           </Tap>
+
         </View>
       </View>
     </BottomSheet.Root>

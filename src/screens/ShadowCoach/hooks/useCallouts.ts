@@ -1,14 +1,19 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { comboSteps, pickCue, resolveBeat } from '../../../commons/utils';
+import { clipPlan, comboSteps, pickCue, resolveBeat } from '../../../commons/utils';
 import { useLatestRef, useTimerBank } from '../../../commons/hooks';
-import type { Beats, Combo, HoldGap, Move, Settings, Stats } from '../../../commons/types';
+import type { ClipPlay } from '../../../commons/components';
+import type { Beats, Clips, Combo, HoldGap, Move, Settings, Stats } from '../../../commons/types';
 
 type Params = {
   settings: Settings;
   moveMap: Record<string, Move>;
   beats: Beats;
+  /** 콤보별 녹음 본체. 있으면 TTS 대신 튼다. */
+  clips: Clips;
   /** 동작 하나를 소리 내어 부른다. */
   speakMove: (id: string) => void;
+  /** 녹음을 튼다. */
+  playClip: (id: string, play: ClipPlay) => void;
   /** 말하던 걸 즉시 끊는다. */
   hush: () => void;
 };
@@ -50,7 +55,7 @@ export type Callouts = {
  *
  * 타이머 묶음을 스스로 들고 있으므로 위층이 이 층의 예약을 직접 건드릴 일이 없다.
  */
-export function useCallouts({ settings, moveMap, beats, speakMove, hush }: Params): Callouts {
+export function useCallouts({ settings, moveMap, beats, clips, speakMove, playClip, hush }: Params): Callouts {
   const [activeCombo, setActiveCombo] = useState<Combo | null>(null);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [hold, setHold] = useState<HoldGap | null>(null);
@@ -70,6 +75,8 @@ export function useCallouts({ settings, moveMap, beats, speakMove, hush }: Param
   const beatRef = useLatestRef(beats);
   const repRef = useLatestRef(repCount);
   const speakRef = useLatestRef(speakMove);
+  const clipsRef = useLatestRef(clips);
+  const playClipRef = useLatestRef(playClip);
 
   /** 순서 모드는 큐를 한 바퀴 돌고, 무작위 모드는 매번 새로 뽑는다. */
   const pickNext = useCallback((): Combo | null => {
@@ -92,16 +99,25 @@ export function useCallouts({ settings, moveMap, beats, speakMove, hush }: Param
       setActiveCombo(combo);
       setActiveIdx(-1);
 
-      const steps = comboSteps(combo, (id) => resolveBeat(id, beatRef.current, moveRef.current), st.tempo);
+      const beatOf = (id: string) => resolveBeat(id, beatRef.current, moveRef.current);
       let t = 0;
-      combo.moves.forEach((mid, i) => {
-        if (!moveRef.current[mid]) return;
-        later(() => {
-          setActiveIdx(i);
-          speakRef.current(mid);
-        }, t);
-        t += steps[i] ?? 0;
-      });
+      if (combo.clip && clipsRef.current[combo.id]) {
+        // 녹음이 진실이다. 칩은 두드린 시각을 따라간다(기획서 7장).
+        const plan = clipPlan(combo, beatOf, st.tempo);
+        playClipRef.current(combo.id, { from: plan.from, duration: plan.duration, rate: st.tempo });
+        plan.marks.forEach((at, i) => later(() => setActiveIdx(i), at));
+        t = plan.total;
+      } else {
+        const steps = comboSteps(combo, beatOf, st.tempo);
+        combo.moves.forEach((mid, i) => {
+          if (!moveRef.current[mid]) return;
+          later(() => {
+            setActiveIdx(i);
+            speakRef.current(mid);
+          }, t);
+          t += steps[i] ?? 0;
+        });
+      }
 
       if (chain) {
         const gapMs = Math.round(st.gap * 1000 + (st.randomGap ? Math.random() * 1200 : 0));
@@ -121,7 +137,7 @@ export function useCallouts({ settings, moveMap, beats, speakMove, hush }: Param
         }, t + 300);
       }
     },
-    [later, pickNext, stRef, moveRef, beatRef, speakRef]
+    [later, pickNext, stRef, moveRef, beatRef, speakRef, clipsRef, playClipRef]
   );
 
   /** 횟수 모드. 남은 횟수를 남은 시간에 고르게 재배분한다. 최소 간격 2.5초. */

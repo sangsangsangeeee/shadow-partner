@@ -1,6 +1,9 @@
 import { BASE_MOVES } from '../constants';
 import type { Beats, Combo, Labels, Move } from '../types';
 
+/** 녹음을 첫 두드림보다 이만큼 앞에서 튼다(초). 말은 손보다 조금 먼저 나온다. */
+export const CLIP_LEAD = 0.15;
+
 /** 기본 동작에 정해진 길이가 없을 때 쓰는 값(초). */
 const FALLBACK_BEAT = 0.65;
 
@@ -44,4 +47,37 @@ export function comboSteps(combo: Combo, beatOf: (id: string) => number, tempo: 
     const sec = typeof tapped === 'number' && i < combo.moves.length - 1 ? tapped : beatOf(mid);
     return Math.round((sec * 1000) / tempo);
   });
+}
+
+export interface ClipPlan {
+  /** 녹음의 어디서부터 틀지(초). */
+  from: number;
+  /** 얼마나 틀지(초). */
+  duration: number;
+  /** 동작마다 칩이 넘어가는 시각(ms, 틀기 시작한 순간 기준). */
+  marks: number[];
+  /** 콤보가 끝나는 시각(ms). 다음 콤보까지의 간격은 여기서 센다. */
+  total: number;
+}
+
+/**
+ * 녹음이 있는 콤보를 어떻게 틀지. 녹음이 진실이고 칩은 두드린 시각을 따라간다(기획서 7장).
+ * 첫 두드림 앞을 잘라 첫 동작에 맞추고, 마지막 동작 뒤는 동작 길이만큼만 남긴다.
+ * 템포는 재생 속도라 시각도 같이 나눈다.
+ */
+export function clipPlan(combo: Combo, beatOf: (id: string) => number, tempo: number): ClipPlan {
+  const meta = combo.clip;
+  const offset = meta ? Math.max(0, meta.offset) : 0;
+  const from = Math.max(0, offset - CLIP_LEAD);
+  const steps = comboSteps(combo, beatOf, 1);
+  let cum = 0;
+  const marks = combo.moves.map((_, i) => {
+    const at = Math.round(((offset - from + cum) * 1000) / tempo);
+    cum += (steps[i] ?? 0) / 1000;
+    return at;
+  });
+  // 마지막 두드림 뒤에는 그 동작의 길이만큼만. 완료 버튼까지 흐른 침묵은 잘라낸다.
+  const end = Math.min(meta ? meta.ms / 1000 : offset + cum, offset + cum);
+  const duration = Math.max(0, (end - from) / tempo);
+  return { from, duration, marks, total: Math.round(duration * 1000) };
 }

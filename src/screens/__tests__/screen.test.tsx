@@ -68,9 +68,13 @@ beforeEach(() => {
 });
 
 
-/** 무대를 n번 두드리고 완료한다. 간격 300ms — 값 자체는 순수 테스트가 본다. */
+/**
+ * 무대를 n번 두드리고 완료한다. 첫 터치는 마이크를 켜는 것이라 세지 않는다.
+ * 간격 300ms — 값 자체는 순수 테스트가 본다. 마이크는 대역이라 영영 안 켜진다 — 녹음 없이 저장되는 길이다.
+ */
 const tapCombo = (n: number) => {
   const stage = screen.getByLabelText('두드리는 무대');
+  fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 500 } });
   for (let i = 0; i < n; i++) fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 1000 + i * 300 } });
   fireEvent.press(screen.getByText('완료'));
 };

@@ -159,6 +159,7 @@ export function CombosView({
           <TapStage
             stage={draft.stage}
             count={draft.taps.length}
+            recording={draft.recording}
             onTap={editor.onTap}
             onFinish={editor.onFinish}
             onCancel={editor.onCancel}

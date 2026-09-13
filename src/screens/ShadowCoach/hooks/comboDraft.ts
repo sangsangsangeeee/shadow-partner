@@ -10,6 +10,16 @@ import type { AliasMap, Combo } from '../../../commons/types';
  */
 
 export type DraftStage = 'idle' | 'tapping' | 'slots';
+/** 마이크의 상태. starting은 켜 달라고 한 뒤, stopping은 멈춰 달라고 한 뒤 본체를 기다리는 동안. */
+export type Recording = 'off' | 'starting' | 'on' | 'failed' | 'stopping';
+
+export interface DraftClip {
+  data: string;
+  /** 초. */
+  duration: number;
+  /** 첫 두드림이 녹음 시작에서 몇 초 뒤인가. */
+  offset: number;
+}
 
 export interface ComboDraft {
   stage: DraftStage;
@@ -28,13 +38,26 @@ export interface ComboDraft {
   cursor: number;
   editingId: string | null;
   hint: string;
+  recording: Recording;
+  /** 녹음을 켤 때마다 오른다. 늦게 도착한 지난 녹음을 걸러낸다. */
+  session: number;
+  /** 마이크가 켜진 시각(벽시계 ms). 첫 두드림과의 차가 clip.offset이 된다. */
+  recStart: number | null;
+  firstTap: number | null;
+  clip: DraftClip | null;
+  /** 이번 초안에서 녹음을 새로 시도했는가. 수정 중이면 있던 녹음을 버릴지 정하는 근거다. */
+  reRecorded: boolean;
 }
 
 export type DraftAction =
-  | { type: 'tap'; at: number }
+  /** 첫 터치. 마이크를 켜고 두드림을 받을 준비를 한다 — 슬롯 단계에서 부르면 다시 두드리기다. */
+  | { type: 'arm' }
+  | { type: 'tap'; at: number; wall: number }
+  | { type: 'recStarted'; at: number }
+  | { type: 'recFailed'; message: string }
+  | { type: 'recorded'; data: string; duration: number }
   | { type: 'finish' }
   | { type: 'cancel' }
-  | { type: 'retap' }
   | { type: 'type'; text: string; alias: AliasMap }
   | { type: 'pick'; id: string }
   | { type: 'clear'; index: number }
@@ -54,6 +77,12 @@ export const INITIAL_DRAFT: ComboDraft = {
   cursor: -1,
   editingId: null,
   hint: '',
+  recording: 'off',
+  session: 0,
+  recStart: null,
+  firstTap: null,
+  clip: null,
+  reRecorded: false,
 };
 
 /** from 다음의 빈 자리. 없으면 앞에서부터 다시 찾고, 그래도 없으면 -1. */
@@ -70,10 +99,40 @@ function fit(slots: (string | null)[], n: number): (string | null)[] {
 
 export function comboDraftReducer(state: ComboDraft, action: DraftAction): ComboDraft {
   switch (action.type) {
+    case 'arm':
+      if (state.stage === 'tapping') return state;
+      return {
+        ...state,
+        stage: 'tapping',
+        taps: [],
+        recording: 'starting',
+        session: state.session + 1,
+        recStart: null,
+        firstTap: null,
+        clip: null,
+        reRecorded: true,
+        hint: '',
+      };
+
     case 'tap': {
-      if (state.stage === 'slots') return state;
+      if (state.stage !== 'tapping') return state;
       if (state.taps.length >= COMBO_MAX_MOVES) return state;
-      return { ...state, stage: 'tapping', taps: [...state.taps, action.at], hint: '' };
+      return { ...state, taps: [...state.taps, action.at], firstTap: state.firstTap ?? action.wall };
+    }
+
+    case 'recStarted':
+      if (state.recording !== 'starting') return state;
+      return { ...state, recording: 'on', recStart: action.at };
+
+    case 'recFailed':
+      if (state.recording === 'off') return state;
+      return { ...state, recording: 'failed' };
+
+    // 본체는 멈춰 달라고 한 뒤에만 받는다. 취소한 녹음이나 지난 판의 것은 여기서 걸러진다.
+    case 'recorded': {
+      if (state.recording !== 'stopping' || state.stage !== 'slots') return state;
+      const offset = state.recStart != null && state.firstTap != null ? Math.max(0, (state.firstTap - state.recStart) / 1000) : 0;
+      return { ...state, recording: 'off', clip: { data: action.data, duration: action.duration, offset } };
     }
 
     case 'finish': {
@@ -81,6 +140,7 @@ export function comboDraftReducer(state: ComboDraft, action: DraftAction): Combo
       const n = state.taps.length;
       if (n === 0) return { ...INITIAL_DRAFT, editingId: state.editingId };
       const slots = fit(state.slots, n);
+      const live = state.recording === 'on' || state.recording === 'starting';
       return {
         ...state,
         stage: 'slots',
@@ -92,19 +152,16 @@ export function comboDraftReducer(state: ComboDraft, action: DraftAction): Combo
         overflow: 0,
         cursor: nextEmpty(slots, -1),
         hint: '',
+        recording: live ? 'stopping' : 'off',
       };
     }
 
     // 두드리다 말면 두드린 것만 버린다. 슬롯 단계에서 취소하면 전부 버린다 — 수정 중이던 것까지.
     case 'cancel':
       if (state.stage === 'tapping' && state.slots.length) {
-        return { ...state, stage: 'slots', taps: [], hint: '' };
+        return { ...state, stage: 'slots', taps: [], hint: '', recording: 'off' };
       }
       return INITIAL_DRAFT;
-
-    case 'retap':
-      if (state.stage !== 'slots') return state;
-      return { ...state, stage: 'tapping', taps: [], hint: '' };
 
     case 'type': {
       if (state.stage !== 'slots') return state;

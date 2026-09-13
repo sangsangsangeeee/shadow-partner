@@ -1,4 +1,4 @@
-import { comboSteps } from '../naming';
+import { CLIP_LEAD, clipPlan, comboSteps } from '../naming';
 import type { Combo } from '../../types';
 
 /* naming은 constants 배럴을 거쳐 팔레트에 닿고, 팔레트는 모듈 로드 때 TDS를 읽는다. */
@@ -37,5 +37,34 @@ describe('comboSteps', () => {
 
   it('템포는 리듬에도 똑같이 걸린다', () => {
     expect(comboSteps(combo(['jab', 'jab', 'jab'], [0.3, 0.3]), beatOf, 1.5)).toEqual([200, 200, 267]);
+  });
+});
+
+/*
+ * 녹음이 있는 콤보. 녹음이 진실이고 칩은 두드린 시각을 따라간다(기획서 7장).
+ * 첫 두드림 앞은 잘라 첫 동작에 맞추고, 마지막 두드림 뒤는 그 동작의 길이만큼만 남긴다.
+ */
+describe('clipPlan', () => {
+  const c = combo(['jab', 'jab', 'cross'], [0.2, 0.3]);
+
+  it('첫 두드림보다 조금 앞에서 틀고, 칩은 두드린 간격으로 넘어간다', () => {
+    const p = clipPlan({ ...c, clip: { offset: 1.0, ms: 5000 } }, beatOf, 1);
+    expect(p.from).toBeCloseTo(1.0 - CLIP_LEAD);
+    expect(p.marks).toEqual([150, 350, 650]);
+    // 마지막 동작(스트레이트 0.5) 뒤는 잘라낸다: 1.0 + 0.5 + 0.5 = 2.0초까지
+    expect(p.duration).toBeCloseTo(2.0 - (1.0 - CLIP_LEAD));
+    expect(p.total).toBe(Math.round(p.duration * 1000));
+  });
+
+  it('녹음이 짧으면 녹음 끝까지만 튼다', () => {
+    const p = clipPlan({ ...c, clip: { offset: 0.2, ms: 700 } }, beatOf, 1);
+    expect(p.duration).toBeCloseTo(0.7 - (0.2 - CLIP_LEAD));
+  });
+
+  it('템포는 재생 속도라 시각도 같이 준다', () => {
+    const p = clipPlan({ ...c, clip: { offset: 0, ms: 5000 } }, beatOf, 2);
+    expect(p.from).toBe(0);
+    expect(p.marks).toEqual([0, 100, 250]);
+    expect(p.duration).toBeCloseTo(1.0 / 2);
   });
 });
