@@ -171,4 +171,9 @@ describe('저장소 — 껐다 켜도 남는다', () => {
     expect(screen.getByText('로우킥')).toBeTruthy();
     expect(screen.getByText('원투')).toBeTruthy();
   });
+
+  /*
+   * v1이 남긴 콤보를 버리는 것은 `persist.test.ts`가 본다 — 저장소를 직접 심어야 하는 일이라
+   * 화면을 세울 이유가 없다. 같은 것을 두 층에서 보지 마라.
+   */
 });

@@ -189,12 +189,14 @@ idle ──arm──▶ recording ──finish──▶ named ──(save)──
 - 마이크 X(엔진 `mic: false`): 무대가 그 줄만 보이고 안 눌린다 — **눌리는 것에 이유가 쓰여 있으니 죽은 버튼이 아니다**(원칙 2).
 - 고정 높이 `STAGE_H = 180` 유지. 모양(살짝 움직임)은 **아직 안 넣는다** — 모양 커밋에서.
 
-### 2-4. 시작 알림
+### 2-4. 시작 알림 — **끝났다. 단 `AlertDialog`는 안 썼다 (2026-09-15)**
 
-- `voice.micAvailable: boolean | null`(ready 전 null). `false`가 되면 세션에 한 번 TDS **`AlertDialog`**(`open` `title` `description` `onClose`):
-  제목 `마이크를 못 써`, 본문은 기획서 4.4 문구. 색을 얹을 필요가 없는 자리라 TDS 그대로 받는다 — design-system.md의 "액센트를 얹을 수 있나" 질문을 통과한다.
-- 테스트: `tdsMock`에 `AlertDialog` 대역 추가(열리면 title·description 텍스트 렌더). WebView 대역이 `ready`를 못 보내니 `micAvailable`을 어떻게 흉내낼지 —
-  `useCoachVoice`를 mock하지 말고, **엔진 `onMessage`를 직접 부르는 길**이 없으므로 이 알림은 **기기에서만 본다.** testing.md에 적는다.
+- `voice.micAvailable: boolean | null`(ready 전 null). `false`면 세션에 한 번 알린다.
+  제목 `마이크를 못 써`, 본문은 기획서 4.4 문구.
+- **TDS `AlertDialog`를 쓰려다 접었다.** 여기 "색을 얹을 필요가 없다"고 적어 뒀던 건 번들을 안 읽고 한 말이었다 —
+  확인 버튼이 `colors.blue500` 하드코딩이고 제목·본문이 `useAdaptive()`의 `grey800`/`grey700`이라 **검정 바탕에서 뒤집힌다.**
+  `SegmentedControl`과 같은 병이라 자체 겹침으로 갔다. 근거는 [design-system.md](rules/design-system.md)에 옮겼다. **다시 조사하지 마라.**
+- 엔진 `ready`가 대역에서 안 오므로 이 알림은 **기기에서만 본다.** testing.md에 적었다.
 
 ### 2-5. 저장·카드
 

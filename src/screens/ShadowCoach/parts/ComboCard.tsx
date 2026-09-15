@@ -4,6 +4,7 @@ import {
   CardAction,
   Check,
   MoreHorizontal,
+  RotateCcw,
   Tap,
   Trash2,
   Typo,
@@ -76,8 +77,8 @@ function ComboCardView({
       {expanded ? (
         <View style={styles.actions}>
           <CardAction icon={Volume2} label="듣기" onPress={() => onPreview(combo)} />
-          <CardAction icon={Check} label="이름" onPress={() => onEdit(combo)} />
-          <CardAction icon={Volume2} label="다시 녹음" onPress={() => onRerecord(combo)} />
+          <CardAction icon={Check} label="이름 고치기" onPress={() => onEdit(combo)} />
+          <CardAction icon={RotateCcw} label="다시 녹음" onPress={() => onRerecord(combo)} />
           <CardAction icon={Trash2} label="삭제" onPress={() => onRemove(combo)} />
         </View>
       ) : null}

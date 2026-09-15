@@ -52,6 +52,11 @@ adaptive 토큰은 쓰지 마라. 이 앱은 검정 바탕 고정이고, `adapti
 `useAdaptive()`의 `grey800`/`grey600` 하드코딩이고, `TabsViewList`는 네이티브 `PagerView`에
 `flex:1`이라 시트 안에서 높이를 못 잡는다. `Segmented` + `SwipeArea`로 간다.
 
+**`AlertDialog`도 안 받는다 (2026-09-15).** 마이크 없음 알림에 쓰려고 열어 봤다가 접었다 —
+확인 버튼이 `TextButton color={colors.blue500}` 하드코딩이고, 제목·본문은 `BaseDialogContents`가
+`useAdaptive()`의 `grey800`/`grey700`으로 그린다. **검정 바탕에서 뒤집힌다.**
+`SegmentedControl`과 같은 병이다. 자체 겹침으로 간다.
+
 **`Switch`와 `Checkbox`는 TDS에서 되돌렸다.** 둘 다 `grey200 → blue500` 하드코딩이라 액센트를 못 얹는다.
 `Switch`는 `style`이 바깥 `Pressable`에만 걸려 트랙에 닿지도 않는다.
 `Switch`는 RN 내장으로, `Checkbox`는 24px 네모 + `Check` 아이콘으로 돌아갔다.

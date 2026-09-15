@@ -179,6 +179,59 @@ describe('name — 죽은 버튼 금지', () => {
   });
 });
 
+/*
+ * 카드 메뉴에서 올라오는 두 길. 기획서 4.4가 둘을 명확히 갈라 놨다 —
+ * 이름 고치기는 녹음을 그대로 두고, 다시 녹음은 이름을 그대로 둔다.
+ * 대역에는 마이크가 없어서 "취소하면 원래 녹음이 남는다"가 여기서만 확인된다.
+ */
+describe('edit — 이름 고치기와 다시 녹음', () => {
+  it('이름 고치기는 이름이 채워진 채 무대로 올라오고, 저장하면 이름만 바뀐다', async () => {
+    await setup();
+    seed('원투');
+    fireEvent.press(screen.getByLabelText('콤보'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
+    // 심은 녹음은 2000ms다. 이름을 고쳐도 이 길이가 그대로여야 한다.
+    expect(screen.getByText('2.0초')).toBeTruthy();
+
+    fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
+    fireEvent.press(screen.getByText('이름 고치기'));
+    await act(async () => {});
+
+    const input = screen.getByPlaceholderText(/이름/);
+    expect(input.props.value).toBe('원투');
+
+    fireEvent.changeText(input, '원투쓰리');
+    fireEvent.press(screen.getByText('수정 저장'));
+    await waitFor(() => expect(screen.getByText('원투쓰리')).toBeTruthy());
+
+    // 녹음은 건드리지 않았다 — 목소리는 여전히 맞는 말을 하고 있다
+    expect(screen.getByText('2.0초')).toBeTruthy();
+    expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy();
+  });
+
+  it('다시 녹음을 취소하면 이름 단계로 돌아오고 원래 녹음이 남는다', async () => {
+    await setup();
+    seed('원투');
+    fireEvent.press(screen.getByLabelText('콤보'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
+
+    fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
+    fireEvent.press(screen.getByText('다시 녹음'));
+    await act(async () => {});
+    // 곧바로 녹음이 시작된다 — 이름은 그대로 두고 녹음만 새로
+    expect(screen.getByText('마이크 켜는 중…')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('녹음 취소'));
+    await act(async () => {});
+
+    // 이름 단계로 돌아온다. 저장하면 원래 녹음이 그대로 남는다.
+    expect(screen.getByPlaceholderText(/이름/).props.value).toBe('원투');
+    fireEvent.press(screen.getByText('수정 저장'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
+    expect(screen.getByText('2.0초')).toBeTruthy();
+  });
+});
+
 describe('undo — 삭제와 되돌리기', () => {
   it('확인 없이 지우고 되돌리기 토스트를 띄운다', async () => {
     await setup();
