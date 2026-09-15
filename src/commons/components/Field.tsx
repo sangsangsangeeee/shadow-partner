@@ -1,5 +1,12 @@
 import React from 'react';
-import { StyleSheet, TextInput, View, type StyleProp, type TextStyle } from 'react-native';
+import {
+  StyleSheet,
+  TextInput,
+  View,
+  type ReturnKeyTypeOptions,
+  type StyleProp,
+  type TextStyle,
+} from 'react-native';
 import { C } from '../constants';
 import { Typo } from './Typo';
 
@@ -12,11 +19,24 @@ type Props = {
   autoFocus?: boolean;
   /** 입력 아래 한 줄 안내. 오류 문구를 여기에 띄운다. */
   error?: string;
+  returnKeyType?: ReturnKeyTypeOptions;
+  /** 엔터로 끝내는 자리. 콤보 이름이 그렇다(기획서 4.4). */
+  onSubmitEditing?: () => void;
   style?: StyleProp<TextStyle>;
 };
 
-/** 라벨 + 입력칸. 세 화면이 같은 테두리·여백을 쓰고 있었다. */
-export function Field({ label, value, onChangeText, placeholder, autoFocus, error, style }: Props) {
+/** 라벨 + 입력칸. 여러 화면이 같은 테두리·여백을 쓰고 있었다. */
+export function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  autoFocus,
+  error,
+  returnKeyType,
+  onSubmitEditing,
+  style,
+}: Props) {
   return (
     <View>
       {label ? (
@@ -30,6 +50,8 @@ export function Field({ label, value, onChangeText, placeholder, autoFocus, erro
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={C.z700}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
         style={[styles.input, style]}
       />
       {error ? (

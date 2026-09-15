@@ -1,28 +1,22 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { clipPlan, comboSteps, pickCue, resolveBeat } from '../../../commons/utils';
+import { clipPlan, pickCue } from '../../../commons/utils';
 import { useLatestRef, useTimerBank } from '../../../commons/hooks';
 import type { ClipPlay } from '../../../commons/components';
-import type { Beats, Clips, Combo, HoldGap, Move, Settings, Stats } from '../../../commons/types';
+import type { Clips, Combo, HoldGap, Settings, Stats } from '../../../commons/types';
 
 type Params = {
   settings: Settings;
-  moveMap: Record<string, Move>;
-  beats: Beats;
-  /** 콤보별 녹음 본체. 있으면 TTS 대신 튼다. */
+  /** 콤보별 녹음 본체. 없으면 그 콤보는 건너뛴다. */
   clips: Clips;
-  /** 동작 하나를 소리 내어 부른다. */
-  speakMove: (id: string) => void;
   /** 녹음을 튼다. */
   playClip: (id: string, play: ClipPlay) => void;
-  /** 말하던 걸 즉시 끊는다. */
-  hush: () => void;
+  /** 나오던 소리를 즉시 끊는다. */
+  stop: () => void;
 };
 
 export type Callouts = {
   /** 지금 부르고 있는 콤보. 없으면 null. */
   activeCombo: Combo | null;
-  /** 그 콤보에서 방금 부른 동작의 자리. 아직/이미 끝났으면 -1. */
-  activeIdx: number;
   /** 콤보 사이 유지 구간. 안내 문구와 남은 시간을 담는다. */
   hold: HoldGap | null;
   /** 횟수 모드에서 지금까지 부른 횟수. */
@@ -39,7 +33,7 @@ export type Callouts = {
   resume: (msLeft: number) => void;
   /** 건너뛰기. 다음 콤보로 즉시 넘어간다. */
   advance: (msLeft: number) => void;
-  /** 예약과 목소리를 멈춘다. 큐와 진행 위치는 남긴다. */
+  /** 예약과 소리를 멈춘다. 큐와 진행 위치는 남긴다. */
   silence: () => void;
   /** 라운드가 끝났다. 화면에서 콤보를 내린다. */
   endRound: () => void;
@@ -52,15 +46,12 @@ export type Callouts = {
  *
  * 라운드도 페이즈도 모른다. "이 콤보를 지금 불러라", "멈춰라"만 안다.
  * 그래서 화면 없이도 호출 타이밍을 검증할 수 있다.
- *
- * 타이머 묶음을 스스로 들고 있으므로 위층이 이 층의 예약을 직접 건드릴 일이 없다.
  */
-export function useCallouts({ settings, moveMap, beats, clips, speakMove, playClip, hush }: Params): Callouts {
+export function useCallouts({ settings, clips, playClip, stop }: Params): Callouts {
   const [activeCombo, setActiveCombo] = useState<Combo | null>(null);
-  const [activeIdx, setActiveIdx] = useState(-1);
   const [hold, setHold] = useState<HoldGap | null>(null);
   const [repCount, setRepCount] = useState(0);
-  const [stats, setStats] = useState<Stats>({ combos: 0, moves: 0 });
+  const [stats, setStats] = useState<Stats>({ combos: 0 });
 
   const timers = useTimerBank();
   const { later, clearAll } = timers;
@@ -71,10 +62,7 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
 
   // 타이머 콜백이 다시 만들어지지 않도록 최신값은 ref로 읽는다.
   const stRef = useLatestRef(settings);
-  const moveRef = useLatestRef(moveMap);
-  const beatRef = useLatestRef(beats);
   const repRef = useLatestRef(repCount);
-  const speakRef = useLatestRef(speakMove);
   const clipsRef = useLatestRef(clips);
   const playClipRef = useLatestRef(playClip);
 
@@ -92,37 +80,28 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
   const playCombo = useCallback(
     (combo: Combo | null, chain = true) => {
       if (!combo) return;
+      /*
+       * 본체를 못 읽은 콤보는 건너뛴다(기획서 5장). 소리가 안 나는 동안 화면만 바뀌면
+       * 무엇이 고장인지 알 수 없어서, 아예 다음 것을 집는다.
+       */
+      if (!clipsRef.current[combo.id]) {
+        const n = pickNext();
+        if (n && n.id !== combo.id) playCombo(n, chain);
+        return;
+      }
       const st = stRef.current;
       curRef.current = combo;
       setHold(null);
-      setStats((p) => ({ combos: p.combos + 1, moves: p.moves + combo.moves.length }));
+      setStats((p) => ({ combos: p.combos + 1 }));
       setActiveCombo(combo);
-      setActiveIdx(-1);
 
-      const beatOf = (id: string) => resolveBeat(id, beatRef.current, moveRef.current);
-      let t = 0;
-      if (combo.clip && clipsRef.current[combo.id]) {
-        // 녹음이 진실이다. 칩은 두드린 시각을 따라간다(기획서 7장).
-        const plan = clipPlan(combo, beatOf, st.tempo);
-        playClipRef.current(combo.id, { from: plan.from, duration: plan.duration, rate: st.tempo });
-        plan.marks.forEach((at, i) => later(() => setActiveIdx(i), at));
-        t = plan.total;
-      } else {
-        const steps = comboSteps(combo, beatOf, st.tempo);
-        combo.moves.forEach((mid, i) => {
-          if (!moveRef.current[mid]) return;
-          later(() => {
-            setActiveIdx(i);
-            speakRef.current(mid);
-          }, t);
-          t += steps[i] ?? 0;
-        });
-      }
+      const plan = clipPlan(combo, st.tempo);
+      playClipRef.current(combo.id, { from: plan.from, duration: plan.duration, rate: st.tempo });
+      const t = plan.total;
 
       if (chain) {
         const gapMs = Math.round(st.gap * 1000 + (st.randomGap ? Math.random() * 1200 : 0));
         later(() => {
-          setActiveIdx(-1);
           setHold({ cue: pickCue(), ms: gapMs });
         }, t);
         later(() => {
@@ -132,12 +111,11 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
         }, t + gapMs);
       } else {
         later(() => {
-          setActiveIdx(-1);
           setHold({ cue: pickCue(), ms: null });
         }, t + 300);
       }
     },
-    [later, pickNext, stRef, moveRef, beatRef, speakRef, clipsRef, playClipRef]
+    [later, pickNext, stRef, clipsRef, playClipRef]
   );
 
   /** 횟수 모드. 남은 횟수를 남은 시간에 고르게 재배분한다. 최소 간격 2.5초. */
@@ -160,9 +138,9 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
 
   const silence = useCallback(() => {
     clearAll();
-    hush();
+    stop();
     setHold(null);
-  }, [clearAll, hush]);
+  }, [clearAll, stop]);
 
   const arm = useCallback((queue: Combo[]) => {
     queueRef.current = queue;
@@ -171,8 +149,7 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
     setRepCount(0);
     setHold(null);
     setActiveCombo(null);
-    setActiveIdx(-1);
-    setStats({ combos: 0, moves: 0 });
+    setStats({ combos: 0 });
   }, []);
 
   const openRound = useCallback(() => {
@@ -216,20 +193,17 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
   const endRound = useCallback(() => {
     silence();
     setActiveCombo(null);
-    setActiveIdx(-1);
   }, [silence]);
 
   const reset = useCallback(() => {
     silence();
     curRef.current = null;
     setActiveCombo(null);
-    setActiveIdx(-1);
   }, [silence]);
 
   return useMemo(
     () => ({
       activeCombo,
-      activeIdx,
       hold,
       repCount,
       stats,
@@ -242,20 +216,6 @@ export function useCallouts({ settings, moveMap, beats, clips, speakMove, playCl
       endRound,
       reset,
     }),
-    [
-      activeCombo,
-      activeIdx,
-      hold,
-      repCount,
-      stats,
-      arm,
-      openRound,
-      startRound,
-      resume,
-      advance,
-      silence,
-      endRound,
-      reset,
-    ]
+    [activeCombo, hold, repCount, stats, arm, openRound, startRound, resume, advance, silence, endRound, reset]
   );
 }

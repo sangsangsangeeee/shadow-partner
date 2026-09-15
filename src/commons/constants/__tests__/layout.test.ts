@@ -1,4 +1,4 @@
-import { CHIP_TRAY_H, TOAST_MS } from '../layout';
+import { TOAST_MS } from '../layout';
 
 /**
  * 기획서가 숫자를 직접 정한 자리들.
@@ -10,10 +10,5 @@ import { CHIP_TRAY_H, TOAST_MS } from '../layout';
 describe('기획서가 정한 치수', () => {
   it('토스트는 3초 뒤 사라진다', () => {
     expect(TOAST_MS).toBe(3000);
-  });
-
-  it('칩 상자는 두 줄분이다', () => {
-    // 칩 한 줄 33(글자 21 + 세로 여백 6×2) × 2 + 줄 사이 4 + 상자 안쪽 여백 12×2
-    expect(CHIP_TRAY_H).toBe(94);
   });
 });

@@ -2,9 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
-import { flushMaterial, resetMaterial } from '../ShadowCoach/hooks';
+import { dispatchMaterial, flushMaterial, resetMaterial } from '../ShadowCoach/hooks';
 import { resetStorage, storageSnapshot } from '../../commons/test-support/storageMock';
-import { ACCENT, KIND_LABEL } from '../../commons/constants';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
@@ -12,10 +11,6 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 /* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -55,206 +50,35 @@ beforeEach(() => {
   resetMaterial();
 });
 
-
-/**
- * 무대를 n번 두드리고 완료한다. 첫 터치는 마이크를 켜는 것이라 세지 않는다.
- * 간격 300ms — 값 자체는 순수 테스트가 본다. 마이크는 대역이라 영영 안 켜진다 — 녹음 없이 저장되는 길이다.
- */
-const tapCombo = (n: number) => {
-  const stage = screen.getByLabelText('두드리는 무대');
-  fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 500 } });
-  for (let i = 0; i < n; i++) fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 1000 + i * 300 } });
-  fireEvent.press(screen.getByText('완료'));
+/* 마이크는 대역에서 영영 안 켜진다. 콤보는 자료에 직접 심는다. */
+const seed = (...names: string[]) => {
+  act(() => {
+    dispatchMaterial({ type: 'hydrate', value: {} });
+    names.forEach((name, i) =>
+      dispatchMaterial({
+        type: 'addCombo',
+        name,
+        clip: { data: `clip-${i}`, ms: 2000, head: 0.2, tail: 1.6 },
+      })
+    );
+  });
 };
 
-describe('reveal — 중복 콤보로 강조하고 자동 해제', () => {
-  it('액센트 링이 둘러졌다가 2.4초 뒤 풀린다', async () => {
-    jest.useFakeTimers();
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-    fireEvent.press(screen.getByLabelText('콤보'));
-
-    // SEED에 있는 콤보를 그대로 친다
-    tapCombo(3);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 스트레이트 로우킥');
-    await act(async () => {});
-    fireEvent.press(screen.getByText('목록에서 보기'));
-    await act(async () => {});
-
-    // 강조는 액센트 링 2px. 평소 카드 테두리는 1px이라 구분된다.
-    const lit = () =>
-      screen.UNSAFE_root.findAll((n) => {
-        const flat = JSON.stringify(n.props?.style) ?? '';
-        return flat.includes(ACCENT) && flat.includes('"borderWidth":2');
-      }).length;
-
-    expect(lit()).toBeGreaterThan(0);
-
-    await act(async () => {
-      jest.advanceTimersByTime(2500);
-    });
-    expect(lit()).toBe(0);
-    jest.useRealTimers();
-  });
-});
-
-describe('addmove — 동작 추가 시트', () => {
-  it('시트에서 넣은 동작이 뒤의 호출어 목록에 바로 뜨고, 시트는 닫힌다', async () => {
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-
-    fireEvent.press(screen.getByLabelText('호출어'));
-    expect(screen.queryByText('엘보')).toBeNull();
-
-    fireEvent.press(screen.getByLabelText('동작 추가'));
-    await act(async () => {});
-
-    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
-    fireEvent.press(screen.getByText('추가'));
-    await act(async () => {});
-
-    // 같은 트리 안이라 저장소를 다시 읽지 않아도 목록에 보인다.
-    expect(screen.getByText('엘보')).toBeTruthy();
-    // 넣고 나면 시트는 스스로 닫힌다 — 입력칸이 사라진 것으로 확인한다.
-    expect(screen.queryByPlaceholderText(/엘보/)).toBeNull();
-  });
-
-  it('이미 있는 말이면 넣지 않고 시트에 그대로 남는다', async () => {
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByLabelText('동작 추가'));
-    await act(async () => {});
-
-    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '잽');
-    fireEvent.press(screen.getByText('추가'));
-    await act(async () => {});
-
-    expect(screen.getByText('이미 같은 말이 등록돼 있어.')).toBeTruthy();
-    expect(screen.getByPlaceholderText(/엘보/)).toBeTruthy();
-  });
-
-  it('넣은 동작의 분류가 지금 보고 있는 것과 다르면 그 분류로 옮겨간다', async () => {
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-
-    // 호출어 탭은 '지르기'부터 보여준다. 발차기로 넣으면 그쪽으로 따라가야 한다.
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByLabelText('동작 추가'));
-    await act(async () => {});
-
-    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '스핀킥');
-    fireEvent.press(screen.getByText(KIND_LABEL.kick));
-    fireEvent.press(screen.getByText('추가'));
-    await act(async () => {});
-
-    expect(screen.getByText('스핀킥')).toBeTruthy();
-  });
-});
-
-describe('moveundo — 동작 삭제의 영향 범위와 전체 복원', () => {
-  it('그 동작을 쓰던 콤보에서 빠지고, 되돌리면 전부 살아난다', async () => {
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-
-    // 동작 추가 시트로 '엘보'를 등록한다
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByLabelText('동작 추가'));
-    await act(async () => {});
-    fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
-    fireEvent.press(screen.getByText('추가'));
-    await act(async () => {});
-
-    // 그 동작으로 콤보 두 개를 만든다
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 엘보');
-    fireEvent.press(screen.getByText('콤보 저장'));
-    await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
-    tapCombo(1);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '엘보');
-    fireEvent.press(screen.getByText('콤보 저장'));
-    await waitFor(() => expect(screen.getByText('콤보 6개 · 6개 사용')).toBeTruthy());
-
-    // 동작을 지운다
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByText('엘보'));
-    await waitFor(() => expect(screen.getByLabelText('동작 삭제')).toBeTruthy());
-    fireEvent.press(screen.getByLabelText('동작 삭제'));
-
-    // 영향 범위를 토스트에 적는다
-    await waitFor(() => expect(screen.getByText('엘보 지웠어 · 콤보 2개에서 빠짐')).toBeTruthy());
-
-    // 엘보만 있던 콤보는 비어서 사라지고, 잽 엘보는 잽만 남는다.
-    // 여기서 탭을 옮기면 토스트가 정리되므로(기획서 9장) 저장소로 확인한다.
-    await waitFor(() => expect(saved<unknown[]>('sbc:combos')).toHaveLength(5));
-    expect(saved<unknown[]>('sbc:moves')).toHaveLength(0);
-
-    // 되돌리면 동작·콤보가 전부 복원된다
-    fireEvent.press(screen.getByText('되돌리기'));
-    await waitFor(() => expect(saved<unknown[]>('sbc:combos')).toHaveLength(6));
-    expect(saved<unknown[]>('sbc:moves')).toHaveLength(1);
-    expect(screen.getByText('엘보')).toBeTruthy();
-  });
-});
-
-describe('beats — 기본 동작 길이 변경·저장·되돌리기', () => {
-  it('덮어쓰기가 저장되고 기본값으로 되돌아간다', async () => {
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
-    fireEvent.press(screen.getByLabelText('호출어'));
-
-    // 잽은 기본 0.40 — 접힌 줄에도 길이가 보인다
-    expect(screen.getByText('아주 짧게')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('잽'));
-    await waitFor(() => expect(screen.getByPlaceholderText('잽')).toBeTruthy());
-    fireEvent.press(screen.getByText('길게'));
-
-    await waitFor(() => expect(saved<Record<string, number>>('sbc:beats')?.jab).toBe(0.85));
-    // 기본값 안내는 그대로 남는다
-    expect(screen.getByText('기본 잽 · 아주 짧게')).toBeTruthy();
-
-    // 되돌리면 덮어쓰기가 사라진다 (기본값을 대체하지 않고 위에 얹었으므로)
-    fireEvent.press(screen.getByLabelText('기본값으로'));
-    await waitFor(() => expect(saved<Record<string, number>>('sbc:beats')?.jab).toBeUndefined());
-  });
-});
+const open = async () => {
+  const view = render(
+    <Layout>
+      <ShadowCoach />
+    </Layout>
+  );
+  await act(async () => {});
+  return view;
+};
 
 describe('gap — 콤보 사이 유지 구간 안내', () => {
   it('콤보가 끝나면 안내 칩이 뜬다', async () => {
     jest.useFakeTimers();
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
+    await open();
+    seed('원투');
     fireEvent.press(screen.getByText('시작'));
 
     await act(async () => {
@@ -278,12 +102,8 @@ describe('gap — 콤보 사이 유지 구간 안내', () => {
 describe('done — 완주, 통계 집계, 재시작', () => {
   it('마지막 라운드를 마치면 완료 화면이 뜨고 다시 시작할 수 있다', async () => {
     jest.useFakeTimers();
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
+    await open();
+    seed('원투');
 
     // 3라운드 × 3:00 + 휴식 2 × 1:00 + 준비 5초
     fireEvent.press(screen.getByText('시작'));
@@ -319,53 +139,36 @@ describe('done — 완주, 통계 집계, 재시작', () => {
 /*
  * 미니앱을 완전히 종료했다 다시 여는 것.
  *
- * 기기에서 콤보와 호출어가 통째로 초기화되는 것으로 깨진 자리다 —
+ * 기기에서 콤보가 통째로 초기화되는 것으로 깨진 자리다 —
  * `AsyncStorage`는 토스 미니앱을 껐다 켜면 남지 않는다. 지금은 토스 저장소를 쓴다.
  *
  * 흉내내는 방법: 저장소는 그대로 두고 **메모리만** 되감는다.
  * 자료는 리액트 트리 밖 모듈 상태라, 그것이 곧 JS 컨텍스트가 새로 서는 것과 같다.
  */
 describe('저장소 — 껐다 켜도 남는다', () => {
-  it('넣은 콤보와 바꾼 호출어가 다시 열었을 때 그대로다', async () => {
-    const first = render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
+  it('넣은 콤보와 녹음이 다시 열었을 때 그대로다', async () => {
+    const first = await open();
+    seed('원투', '로우킥');
 
     fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(3);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 잽 로우킥');
-    await act(async () => {});
-    fireEvent.press(screen.getByText('콤보 저장'));
-    await act(async () => {});
-
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByText('잽'));
-    await act(async () => {});
-    fireEvent.changeText(screen.getByPlaceholderText('잽'), '원');
-    await act(async () => {});
+    await waitFor(() => expect(screen.getByText('콤보 2개 · 2개 사용')).toBeTruthy());
 
     // 미뤄둔 쓰기를 내보낸다. 앱이 내려가는 순간에 일어나는 일과 같다.
     act(() => flushMaterial());
+    const stored = saved<{ id: string; name: string }[]>('sbc:combos');
+    expect(stored).toHaveLength(2);
+    // 본체는 콤보별 키로 따로 나간다(기획서 5장)
+    expect(saved<string>('sbc:clip:' + stored![0]!.id)).toBe('clip-1');
+
     first.unmount();
 
     // 여기서부터 새로 켠 앱이다. 저장소는 그대로, 메모리는 비었다.
     resetMaterial();
 
-    render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
-    await act(async () => {});
+    await open();
     fireEvent.press(screen.getByLabelText('콤보'));
-    // 넣은 콤보가 목록에 남아 있고, 두드린 리듬도 같이 남는다(300ms 간격 둘)
-    await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
-    expect(saved<{ rhythm?: number[] }[]>('sbc:combos')?.[0]?.rhythm).toEqual([0.3, 0.3]);
-    // 바꾼 호출어도 남아서 칩에 '잽'이 아니라 '원'으로 뜬다
-    expect(screen.getAllByText('원').length).toBeGreaterThan(0);
-    expect(screen.queryByText('잽')).toBeNull();
+    await waitFor(() => expect(screen.getByText('콤보 2개 · 2개 사용')).toBeTruthy());
+    expect(screen.getByText('로우킥')).toBeTruthy();
+    expect(screen.getByText('원투')).toBeTruthy();
   });
 });

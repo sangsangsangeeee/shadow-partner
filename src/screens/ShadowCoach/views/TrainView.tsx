@@ -13,17 +13,14 @@ import {
   Typo,
 } from '../../../commons/components';
 import { ACCENT, C, MAXW, MODES, NUMS, REF_H, REF_RING } from '../../../commons/constants';
-import { comboSteps, fmt, trainScale } from '../../../commons/utils';
-import type { Move, Phase, Settings } from '../../../commons/types';
+import { clipPlan, fmt, trainScale } from '../../../commons/utils';
+import type { Phase, Settings } from '../../../commons/types';
 import type { Callouts, Training } from '../hooks';
 
 type Props = {
   training: Training;
   callouts: Callouts;
   settings: Settings;
-  label: (id: string) => string;
-  beatOf: (id: string) => number;
-  moveMap: Record<string, Move>;
   /** 훈련에 들어간 콤보 수. 대기 화면 안내에 쓴다. */
   readyCount: number;
   /** 창 너비. 배율 계산에 들어간다. */
@@ -41,22 +38,19 @@ const TAB_BAR_ROOM = 96;
  * 훈련 화면.
  *
  * 여기만 스크롤하지 않는다. 남는 높이에 링을 맞춰 넣고 나머지 치수를 같은 배율로 따라가게 해서
- * 기기 해상도가 달라도 같은 그림이 나오게 한다. 그래서 배율에 관한 상태는 전부 이 화면 안에 있다.
+ * 기기 해상도가 달라도 같은 그림이 나오게 한다.
  */
 export function TrainView({
   training,
   callouts,
   settings,
-  label,
-  beatOf,
-  moveMap,
   readyCount,
   windowWidth,
   bottomSafe,
   onOpenSettings,
 }: Props) {
   const { phase, paused, round, timeLeft, running, startError, start, stop, togglePause, skip } = training;
-  const { activeCombo, activeIdx, hold, repCount } = callouts;
+  const { activeCombo, hold, repCount } = callouts;
 
   /**
    * 이 화면에 실제로 주어진 높이. flex:1이라 자식과 무관하게 정해진다.
@@ -72,9 +66,10 @@ export function TrainView({
   );
   /** 기준 치수를 현재 배율로 옮긴다. */
   const px = (n: number) => Math.round(n * scale);
-  /* 비트 트랙의 칸 폭과 채우는 시간. 호출이 기다리는 시간과 같은 식이어야 눈과 귀가 맞는다. */
-  const steps = activeCombo ? comboSteps(activeCombo, beatOf, settings.tempo) : [];
   const ringSize = px(REF_RING);
+
+  /* 막대가 차는 시간은 녹음을 트는 시간과 같은 식에서 나와야 눈과 귀가 맞는다. */
+  const comboMs = activeCombo ? clipPlan(activeCombo, settings.tempo).total : 0;
 
   const statusText: Record<Phase, string> = {
     idle: '',
@@ -144,46 +139,15 @@ export function TrainView({
               </View>
             </View>
           ) : activeCombo ? (
+            /* 이름 + 막대. 화면을 안 봐도 훈련이 되므로 여기에 더 얹지 않는다(원칙 1). */
             <View>
               <View style={[styles.chipRow, { gap: px(8), marginBottom: px(16) }]}>
-                {activeCombo.moves.map((mid, i) => {
-                  const done = i < activeIdx;
-                  const now = i === activeIdx;
-                  return (
-                    <View
-                      key={`${mid}-${i}`}
-                      style={[
-                        styles.callChip,
-                        { paddingHorizontal: px(12), paddingVertical: px(8) },
-                        now ? styles.callChipNow : null,
-                      ]}
-                    >
-                      <Typo
-                        level="chip"
-                        weight={now ? 'semibold' : 'regular'}
-                        color={now ? C.white : done ? C.z800 : C.z500}
-                        style={{ fontSize: px(19) }}
-                      >
-                        {label(mid)}
-                      </Typo>
-                    </View>
-                  );
-                })}
+                <Typo level="title" weight="semibold" color={C.white} style={{ fontSize: px(22) }}>
+                  {activeCombo.name}
+                </Typo>
               </View>
-
-              {/* 비트 트랙 — 동작마다 다음까지 기다리는 시간에 비례한 폭. 호출과 같은 식에서 나온다 */}
-              <View style={[styles.beatTrack, { height: px(8), gap: px(4) }]}>
-                {activeCombo.moves.map((mid, i) => {
-                  const m = moveMap[mid];
-                  if (!m) return null;
-                  const ms = steps[i] ?? 0;
-                  return (
-                    <View key={`${mid}-${i}`} style={[styles.beatCell, { flexGrow: ms }]}>
-                      {i < activeIdx ? <View style={styles.beatDone} /> : null}
-                      {i === activeIdx ? <FillBar ms={ms} color={ACCENT} /> : null}
-                    </View>
-                  );
-                })}
+              <View style={[styles.gauge, { height: px(8) }]}>
+                <FillBar ms={comboMs} color={C.white} />
               </View>
 
               {settings.mode === 'count' ? (
@@ -267,13 +231,6 @@ const styles = StyleSheet.create({
   gauge: { height: 8, borderRadius: 4, backgroundColor: C.card, overflow: 'hidden' },
   gaugeIdle: { height: '100%', width: '33%' },
   gaugeIdleFill: { flex: 1, backgroundColor: C.line },
-
-  callChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  callChipNow: { backgroundColor: ACCENT, transform: [{ scale: 1.1 }] },
-
-  beatTrack: { flexDirection: 'row', gap: 4, height: 8 },
-  beatCell: { flexBasis: 0, borderRadius: 4, backgroundColor: C.card, overflow: 'hidden' },
-  beatDone: { height: '100%', width: '100%', backgroundColor: ACCENT, opacity: 0.3 },
 
   controls: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   primaryBtn: {

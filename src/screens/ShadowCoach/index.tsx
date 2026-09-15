@@ -1,19 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Toast } from '@toss/tds-react-native';
-import {
-  ACCENT,
-  C,
-  LAYER,
-  MAXW,
-  TOAST_MS,
-  TOUCH,
-} from '../../commons/constants';
-import { clipPlan, comboSteps, resolveBeat, resolveName } from '../../commons/utils';
+import { ACCENT, C, LAYER, MAXW, RECORD_MAX_MS, TOAST_MS, TOUCH } from '../../commons/constants';
+import { clipPlan } from '../../commons/utils';
 import {
   Check,
   ListOrdered,
-  Megaphone,
   Plus,
   SettingsIcon,
   Tap,
@@ -22,34 +14,21 @@ import {
   useCoachVoice,
   X,
 } from '../../commons/components';
-import {
-  useKeyboardHeight,
-  useLatestRef,
-  useTimerBank,
-} from '../../commons/hooks';
-import { comboDraftReducer, INITIAL_DRAFT, nextEmpty, useCallouts, useTraining } from './hooks';
+import { useKeyboardHeight, useLatestRef, useTimerBank } from '../../commons/hooks';
+import { comboDraftReducer, INITIAL_DRAFT, useCallouts, useTraining } from './hooks';
 import { useMaterialContext } from './MaterialContext';
-import { AddMoveSheet, DoneOverlay, MovePickerSheet, SettingsSheet, SlotRow } from './parts';
-import { CombosView, TrainView, WordsView, type DraftEditor } from './views';
-import type {
-  Beats,
-  Clips,
-  Combo,
-  Kind,
-  Labels,
-  Move,
-  Settings,
-  Tab,
-} from '../../commons/types';
+import { DoneOverlay, SettingsSheet } from './parts';
+import { CombosView, TrainView, type DraftEditor } from './views';
+import type { Clips, Combo, Settings, Tab } from '../../commons/types';
 import { useSafeAreaInsets } from '@granite-js/native/react-native-safe-area-context';
-
-
 
 const TABS: { id: Tab; label: string; icon: typeof Timer }[] = [
   { id: 'train', label: '훈련', icon: Timer },
   { id: 'combos', label: '콤보', icon: ListOrdered },
-  { id: 'words', label: '호출어', icon: Megaphone },
 ];
+
+/** 녹음 중 경과 초를 세는 주기(ms). 자료가 아니라 무대가 보여주는 숫자다. */
+const ELAPSED_TICK = 100;
 
 export default function ShadowCoach() {
   return <Screen />;
@@ -59,9 +38,8 @@ function Screen() {
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
 
-  /* 저장되는 훈련 자료는 전부 한 리듀서에 있다. 별도 화면이 된 동작 고르기·추가와도 나눠 쓴다. */
-  const { state: material, dispatch, moveMap, alias, allMoves, label, beatOf } = useMaterialContext();
-  const { combos, settings, labels, customMoves, beats, clips, undo } = material;
+  const { state: material, dispatch } = useMaterialContext();
+  const { combos, settings, clips, undo } = material;
 
   /*
    * 토스트를 갈아 끼울 열쇠. 닫힌 뒤에도 마지막 번호를 들고 있는다 —
@@ -73,16 +51,10 @@ function Screen() {
 
   const [tab, setTab] = useState<Tab>('train');
 
-  /* 콤보 초안 — 무대·슬롯·한 줄 입력이 한 상태다. 저장소에는 안 들어간다. */
+  /* 콤보 초안 — 녹음과 이름이 한 상태다. 저장소에는 안 들어간다. */
   const [draft, dispatchDraft] = useReducer(comboDraftReducer, INITIAL_DRAFT);
   const editingId = draft.editingId;
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [addMoveOpen, setAddMoveOpen] = useState(false);
-
-  const [wordKind, setWordKind] = useState<Kind>('punch');
-  /* 호출어 목록의 펼친 줄. 뷰가 쓰지만 동작 추가 시트가 접어야 해서 여기 있다. */
-  const [wordsEditing, setWordsEditing] = useState<string | null>(null);
 
   const kb = useKeyboardHeight();
 
@@ -91,72 +63,32 @@ function Screen() {
 
   const voice = useCoachVoice();
 
-  /* ---- 파생값 ---- */
-
   /* 타이머 콜백 안에서 읽을 최신값. 의존성에 넣으면 타이머가 다시 만들어져 끊긴다. */
   const voiceRef = useLatestRef(voice);
   const stRef = useLatestRef(settings);
-  const labelRef = useLatestRef<Labels>(labels);
-  const moveRef = useLatestRef<Record<string, Move>>(moveMap);
-  /* 목록을 읽어야 하는 콜백이 신원을 잃지 않도록 ref로 본다. */
-  const customMovesRef = useLatestRef(customMoves);
-  const beatsRef = useLatestRef<Beats>(beats);
-
-  /**
-   * 콜백 안에서 쓰는 이름 조회. label과 결과는 같지만 신원이 고정돼 있다.
-   * label 쪽은 이름이 바뀌면 신원도 바뀌어야 memo를 건 자식이 다시 그려지므로 따로 둔다.
-   */
-  const nameOf = useCallback(
-    (id: string) => resolveName(id, labelRef.current, moveRef.current),
-    [labelRef, moveRef]
-  );
-
-  /* 자리가 다 찼을 때만 콤보다. 중복도 그때 본다. */
-  const draftMoves = useMemo(
-    () => (draft.stage === 'slots' && draft.slots.every((s) => s != null) ? (draft.slots as string[]) : null),
-    [draft.stage, draft.slots]
-  );
-  const dupCombo = draftMoves
-    ? (combos.find((c) => c.id !== editingId && c.moves.join('>') === draftMoves.join('>')) ?? null)
-    : null;
-  const canSave = draftMoves != null && !dupCombo && draft.overflow === 0;
-  /* 저장 버튼은 슬롯 단계에 들어가면 뜬다. 빈 자리가 있어도 뜬다 — 눌러야 이유를 물을 수 있다. */
-  const saveFabShown = tab === 'combos' && draft.stage === 'slots';
-  const anyFabShown = saveFabShown || tab === 'words';
 
   /* ---- 소리 ---- */
 
-  const speak = useCallback((text: string) => {
-    const st = stRef.current;
-    voiceRef.current.speak(text, st.rate, st.voiceURI);
-  }, []);
-
-  const speakMove = useCallback(
-    (id: string) => {
-      const custom = labelRef.current[id];
-      const m = moveRef.current[id];
-      speak(custom && custom.trim() ? custom.trim() : m ? m.name : '');
-    },
-    [speak]
-  );
-
-  const hush = useCallback(() => voiceRef.current.hush(), []);
-  const prime = useCallback(() => voiceRef.current.prime(), []);
+  const stopSound = useCallback(() => voiceRef.current.stop(), [voiceRef]);
+  const prime = useCallback(() => voiceRef.current.prime(), [voiceRef]);
 
   /* ---- 훈련 ---- */
 
   /* 아래 층은 콤보를 소리로 푸는 일만, 위 층은 라운드를 굴리는 일만 안다. */
-  const playClip = useCallback((id: string, play: Parameters<typeof voice.playClip>[1]) => voiceRef.current.playClip(id, play), []);
-  const callouts = useCallouts({ settings, moveMap, beats, clips, speakMove, playClip, hush });
-  const training = useTraining({ settings, combos, callouts, voice, speak });
+  const playClip = useCallback(
+    (id: string, play: Parameters<typeof voice.playClip>[1]) => voiceRef.current.playClip(id, play),
+    [voiceRef]
+  );
+  const callouts = useCallouts({ settings, clips, playClip, stop: stopSound });
+  const training = useTraining({ settings, combos, callouts, voice });
 
   const { stats } = callouts;
   const { phase, running, start, stop } = training;
 
-  // 타이머 묶음·만료 상태·화면 잠금은 각자의 훅이 언마운트에서 스스로 치운다.
-  useEffect(() => () => voiceRef.current.hush(), [voiceRef]);
+  // 타이머 묶음·화면 잠금은 각자의 훅이 언마운트에서 스스로 치운다.
+  useEffect(() => () => voiceRef.current.stop(), [voiceRef]);
 
-  /* 녹음 본체를 엔진에 풀어 둔다. 바뀐 것만 — 시작할 때 전부, 그 뒤엔 넣고 뺀 것만. */
+  /* 녹음 본체를 엔진에 풀어 둔다. 바뀐 것만 — 부를 때 풀면 첫 콤보가 늦는다(기획서 6장). */
   const loadedClipsRef = useRef<Clips>({});
   useEffect(() => {
     const was = loadedClipsRef.current;
@@ -168,13 +100,18 @@ function Screen() {
     loadedClipsRef.current = clips;
   }, [clips, voiceRef]);
 
-  /* ---- 음성 입력 (보류) ----
-     웹판에는 Web Speech API 기반 콤보 받아쓰기가 주석으로 남아 있었다.
-     RN에는 대응 API가 없어 네이티브 음성 인식 모듈이 필요하다. 기획이 정리되면 되살린다. */
+  /* ---- 마이크 알림 ---- */
+
+  /*
+   * 마이크가 없으면 콤보를 만드는 길이 아예 없다. 세션에 한 번 알린다(기획서 4.4).
+   * 권한 거부는 첫 녹음 때 드러나므로 그때 무대가 말한다.
+   */
+  const [micNoticeSeen, setMicNoticeSeen] = useState(false);
+  const micNoticeOpen = voice.micAvailable === false && !micNoticeSeen;
 
   /* ---- 콤보 ---- */
 
-  const hint = (text: string) => dispatchDraft({ type: 'hint', text });
+  const hint = useCallback((text: string) => dispatchDraft({ type: 'hint', text }), []);
 
   /* 마이크 쪽에서 온 일을 초안에 넣는다. 번호가 같으면 이미 넣은 것이다. */
   const recEvent = voice.recordEvent;
@@ -182,9 +119,16 @@ function Screen() {
   useEffect(() => {
     if (!recEvent || recEvent.seq === recSeenRef.current) return;
     recSeenRef.current = recEvent.seq;
-    if (recEvent.kind === 'started') dispatchDraft({ type: 'recStarted', at: recEvent.at });
-    else if (recEvent.kind === 'done') dispatchDraft({ type: 'recorded', data: recEvent.data, duration: recEvent.duration });
-    else dispatchDraft({ type: 'recFailed', message: recEvent.message });
+    if (recEvent.kind === 'started') dispatchDraft({ type: 'recStarted' });
+    else if (recEvent.kind === 'done') {
+      dispatchDraft({
+        type: 'recorded',
+        data: recEvent.data,
+        duration: recEvent.duration,
+        head: recEvent.head,
+        tail: recEvent.tail,
+      });
+    } else dispatchDraft({ type: 'recFailed', message: recEvent.message });
   }, [recEvent]);
 
   /* 새 녹음은 저장 전에도 들어봐야 한다. 초안 자리에 풀어 둔다. */
@@ -194,279 +138,167 @@ function Screen() {
     else voiceRef.current.dropClip('draft');
   }, [draftClip, voiceRef]);
 
-  /** 죽은 버튼을 두지 않는다 — 안 되는 이유를 순서대로 말한다(기획서 9장). */
-  const saveCombo = () => {
-    if (draft.stage !== 'slots') return;
-    const empty = draft.slots.filter((s) => s == null).length;
-    if (draft.overflow > 0) {
-      hint(`두드린 건 ${draft.slots.length}개인데 ${draft.slots.length + draft.overflow}개를 적었어. 다시 두드리거나 줄여줘.`);
+  /* 경과 초는 자료가 아니다. 녹음이 도는 동안에만 화면이 센다. */
+  const [elapsed, setElapsed] = useState(0);
+  const isRecording = draft.stage === 'recording' && draft.recording === 'on';
+  useEffect(() => {
+    if (!isRecording) return undefined;
+    setElapsed(0);
+    const started = Date.now();
+    const iv = setInterval(() => setElapsed((Date.now() - started) / 1000), ELAPSED_TICK);
+    return () => clearInterval(iv);
+  }, [isRecording]);
+
+  /** 수정 중이면 저장된 녹음의 길이를, 새로 녹음했으면 그것의 길이를 보여준다. */
+  const editingCombo = editingId ? combos.find((c) => c.id === editingId) : undefined;
+  const clipMs = draft.clip ? Math.round(draft.clip.duration * 1000) : (editingCombo?.ms ?? 0);
+
+  /** 죽은 버튼을 두지 않는다 — 안 되는 이유를 순서대로 말한다(기획서 8장). */
+  const saveCombo = useCallback(() => {
+    const d = draft;
+    if (d.stage !== 'named') return;
+    if (!d.name.trim()) {
+      hint('이름을 적어줘.');
       return;
     }
-    if (empty > 0) {
-      hint(
-        draft.unknown.length
-          ? '적은 말을 못 알아들었어. 자리를 눌러 골라보거나, 호출어 탭에서 동작을 추가해줘.'
-          : `빈 자리가 ${empty}개야. 자리를 눌러 고르거나 한 줄로 적어줘.`
-      );
+    const clip = d.clip
+      ? {
+          data: d.clip.data,
+          ms: Math.round(d.clip.duration * 1000),
+          head: d.clip.head,
+          tail: d.clip.tail,
+        }
+      : null;
+    if (!clip && !(editingId && !d.reRecorded)) {
+      hint('녹음이 없어. 다시 녹음해줘.');
       return;
     }
-    if (dupCombo) {
-      hint(dupCombo.on ? '이미 같은 콤보가 있어. 아래 목록에서 확인해봐.' : '이미 같은 콤보가 있는데 훈련에서 빠져 있어.');
-      return;
-    }
-    if (!draftMoves) return;
-    // 리듬이 비어 있으면(자리 하나) 안 싣는다. 없는 것과 있는데 빈 것은 다르다.
-    const rhythm = draft.rhythm.length ? draft.rhythm : undefined;
-    const clip = draft.clip
-      ? { meta: { offset: draft.clip.offset, ms: Math.round(draft.clip.duration * 1000) }, data: draft.clip.data }
-      : undefined;
     if (editingId) {
-      // 다시 두드렸는데 녹음이 안 됐으면 있던 녹음은 리듬과 안 맞는다 — 버린다. 태그만 고쳤으면 둔다.
-      dispatch({ type: 'replaceCombo', id: editingId, moves: draftMoves, rhythm, clip: clip ?? (draft.reRecorded ? null : undefined) });
-    } else {
-      dispatch({ type: 'addCombo', moves: draftMoves, rhythm, clip });
+      // 이름만 고쳤으면 clip을 안 준다 — 있던 녹음을 그대로 둔다.
+      dispatch({ type: 'replaceCombo', id: editingId, name: d.name.trim(), ...(clip ? { clip } : {}) });
+    } else if (clip) {
+      dispatch({ type: 'addCombo', name: d.name.trim(), clip });
     }
     dispatchDraft({ type: 'reset' });
     Keyboard.dismiss();
-  };
+  }, [draft, editingId, dispatch, hint]);
 
   const removeCombo = useCallback((c: Combo) => dispatch({ type: 'removeCombo', id: c.id }), [dispatch]);
-
   const toggleCombo = useCallback((c: Combo) => dispatch({ type: 'toggleCombo', id: c.id }), [dispatch]);
-
 
   // 토스트가 이 둘을 시계 이펙트의 의존성으로 잡는다. 매 렌더 새 함수를 주면 시계가 계속 되감긴다.
   const restoreUndo = useCallback(() => dispatch({ type: 'restoreUndo' }), [dispatch]);
   const dismissUndo = useCallback(() => dispatch({ type: 'dismissUndo' }), [dispatch]);
 
-  const editCombo = useCallback(
-    (c: Combo) => {
-      dispatchDraft({ type: 'edit', combo: c, names: c.moves.map(nameOf) });
-      setTab('combos');
-    },
-    [nameOf]
-  );
-
-  const clipsRef = useLatestRef<Clips>(clips);
-  const previewCombo = useCallback(
-    (c: Combo) => {
-      prime();
-      hush();
-      previewTimers.clearAll();
-      const beatOf = (id: string) => resolveBeat(id, beatsRef.current, moveRef.current);
-      const tempo = stRef.current.tempo;
-      if (c.clip && clipsRef.current[c.id]) {
-        const plan = clipPlan(c, beatOf, tempo);
-        voiceRef.current.playClip(c.id, { from: plan.from, duration: plan.duration, rate: tempo });
-        return;
-      }
-      const steps = comboSteps(c, beatOf, tempo);
-      let t = 0;
-      c.moves.forEach((mid, i) => {
-        if (!moveRef.current[mid]) return;
-        previewTimers.later(() => speakMove(mid), t);
-        t += steps[i] ?? 0;
-      });
-    },
-    [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, clipsRef, voiceRef]
-  );
-
-  /**
-   * 초안 듣기 — 훈련에서 들릴 그대로. 녹음이 있으면 녹음, 없으면 채운 자리는 지금 말 속도의 TTS,
-   * 빈 자리는 클릭음. 수정 중이고 새로 안 두드렸으면 저장된 녹음이다.
-   */
-  const listenDraft = useCallback(() => {
-    prime();
-    hush();
-    previewTimers.clearAll();
-    const beatOf = (id: string) => resolveBeat(id, beatsRef.current, moveRef.current);
-    const tempo = stRef.current.tempo;
-    const combo: Combo = { id: 'draft', moves: draft.slots.map((s) => s ?? ''), on: true, rhythm: draft.rhythm };
-    if (draft.clip) {
-      const plan = clipPlan({ ...combo, clip: { offset: draft.clip.offset, ms: draft.clip.duration * 1000 } }, beatOf, tempo);
-      voiceRef.current.playClip('draft', { from: plan.from, duration: plan.duration, rate: tempo });
-      return;
-    }
-    const stored = editingId ? combos.find((c) => c.id === editingId) : undefined;
-    if (stored?.clip && !draft.reRecorded && clipsRef.current[stored.id]) {
-      const plan = clipPlan({ ...stored, moves: combo.moves, rhythm: combo.rhythm }, beatOf, tempo);
-      voiceRef.current.playClip(stored.id, { from: plan.from, duration: plan.duration, rate: tempo });
-      return;
-    }
-    const steps = comboSteps(combo, beatOf, tempo);
-    let t = 0;
-    draft.slots.forEach((s, i) => {
-      previewTimers.later(() => (s ? speakMove(s) : voiceRef.current.blip()), t);
-      t += steps[i] ?? 0;
-    });
-  }, [prime, hush, previewTimers, speakMove, moveRef, beatsRef, stRef, voiceRef, clipsRef, combos, editingId, draft.slots, draft.rhythm, draft.clip, draft.reRecorded]);
-
-  /* ---- 호출어 / 동작 ---- */
-
-  const set = <K extends keyof Settings>(k: K, v: Settings[K]) =>
-    dispatch({ type: 'patchSettings', patch: { [k]: v } as Partial<Settings> });
-
-  const applyNumbers = () => dispatch({ type: 'applyNumberLabels' });
-  const resetBaseLabels = () => dispatch({ type: 'resetBaseMoves' });
-
-  /** 이름 중복만 여기서 막는다. 별칭 사전이 화면 쪽에 있기 때문이다. */
-
-  /*
-   * 호출어 목록의 한 줄이 부르는 것들. 전부 신원이 고정돼야 memo가 산다.
-   * dispatch는 리액트가 신원을 보장하므로 목록을 ref로 들고 있을 필요가 없어졌다.
-   */
-
-  /** 직접 추가한 동작은 이름 자체를, 기본 동작은 얹은 호출어를 고친다. */
-  const changeWordName = useCallback(
-    (id: string, v: string) => {
-      if (customMovesRef.current.some((m) => m.id === id)) {
-        dispatch({ type: 'renameMove', id, name: v });
-      } else {
-        dispatch({ type: 'setLabel', id, value: v });
-      }
-    },
-    [customMovesRef, dispatch]
-  );
-
-  const changeWordBeat = useCallback(
-    (id: string, beat: number) => dispatch({ type: 'setBeat', id, beat }),
-    [dispatch]
-  );
-
-  const resetWord = useCallback((id: string) => dispatch({ type: 'resetMove', id }), [dispatch]);
-
-  const previewWord = useCallback(
-    (id: string) => {
-      prime();
-      speakMove(id);
-    },
-    [prime, speakMove]
-  );
-
-  const deleteMove = useCallback((id: string) => dispatch({ type: 'removeMove', id }), [dispatch]);
-
-  /* ---- 시트 ---- */
-
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
-  const openSheet = useCallback(() => setSheetOpen(true), []);
-
-  /*
-   * 시트를 띄우기 전에 키보드를 내린다.
-   *
-   * 시트는 별도 네이티브 층이 아니라 앱 트리 안의 뷰다. 그래서 뒤에 깔린 입력칸이 포커스를
-   * 놓지 않고, 키보드가 시트 위에 그대로 남는다. 스크롤 뷰가 keyboardShouldPersistTaps라
-   * 버튼을 눌러도 RN이 대신 닫아주지 않는다 — 여는 쪽에서 직접 내려야 한다.
-   *
-   * 자리 문제이기도 하다. useSheetHeight는 키보드가 떠 있으면 시트 키를 그 위로 줄인다.
-   * 안 내리고 열면 쪼그라든 채 떴다가, 키보드가 내려갈 때 늘어나며 들썩인다.
-   *
-   * 설정 시트는 훈련 탭에서만 열리고 그 탭에는 입력칸이 없어 여기 끼우지 않는다.
-   */
-  const openPicker = useCallback(() => {
-    Keyboard.dismiss();
-    setPickerOpen(true);
-  }, []);
-  const closePicker = useCallback(() => setPickerOpen(false), []);
-  const openAddMove = useCallback(() => {
-    Keyboard.dismiss();
-    // 펼친 줄을 두고 열면 시트가 닫힐 때 그 줄의 autoFocus가 키보드를 도로 불러온다.
-    setWordsEditing(null);
-    setAddMoveOpen(true);
-  }, []);
-  const closeAddMove = useCallback(() => setAddMoveOpen(false), []);
-
-  /* 방금 넣은 동작이 지금 보고 있는 분류가 아니면 목록에 없는 것처럼 보인다. 그 분류로 옮겨준다. */
-  const afterAddMove = useCallback((kind: Kind) => setWordKind(kind), []);
-
   /* 초안을 움직이는 손들. 뷰에 한 벌로 넘긴다. */
   const draftRef = useLatestRef(draft);
-  /** 첫 터치는 마이크를 켠다. 그다음부터 두드림이다(기획서 4.4). */
   const arm = useCallback(() => {
     prime();
+    voiceRef.current.tick();
     dispatchDraft({ type: 'arm' });
-    voiceRef.current.recordStart();
+    voiceRef.current.recordStart(RECORD_MAX_MS);
   }, [prime, voiceRef]);
-  const tapStage = useCallback(
-    (at: number) => {
-      if (draftRef.current.stage !== 'tapping') {
-        arm();
-        return;
-      }
-      voiceRef.current.tick();
-      dispatchDraft({ type: 'tap', at, wall: Date.now() });
-    },
-    [arm, draftRef, voiceRef]
-  );
+
   /** 마이크가 켜져 있거나 켜는 중이면 놓아준다. 본체는 finish 뒤에만 받는다. */
   const releaseMic = useCallback(() => {
     const r = draftRef.current.recording;
     if (r === 'on' || r === 'starting') voiceRef.current.recordStop();
   }, [draftRef, voiceRef]);
-  const finishTaps = useCallback(() => {
+
+  const finishRec = useCallback(() => {
     releaseMic();
     dispatchDraft({ type: 'finish' });
   }, [releaseMic]);
+
   const cancelDraft = useCallback(() => {
     releaseMic();
     dispatchDraft({ type: 'cancel' });
   }, [releaseMic]);
-  const changeDraftText = useCallback((text: string) => dispatchDraft({ type: 'type', text, alias }), [alias]);
-  /* 채워진 자리는 비우고, 빈 자리는 그 자리를 열고 고르기 시트를 띄운다. */
-  const pressSlot = useCallback(
-    (index: number) => {
-      if (draft.slots[index]) {
-        dispatchDraft({ type: 'clear', index });
-        return;
-      }
-      dispatchDraft({ type: 'open', index });
-      openPicker();
+
+  const changeName = useCallback((text: string) => dispatchDraft({ type: 'setName', text }), []);
+
+  /** 저장 전 듣기 — 훈련에서 들릴 그대로. 앞뒤를 자르고 지금 템포로(기획서 4.4). */
+  const listenDraft = useCallback(() => {
+    prime();
+    stopSound();
+    previewTimers.clearAll();
+    const tempo = stRef.current.tempo;
+    const d = draftRef.current;
+    if (d.clip) {
+      const plan = clipPlan(
+        { ms: Math.round(d.clip.duration * 1000), head: d.clip.head, tail: d.clip.tail },
+        tempo
+      );
+      voiceRef.current.playClip('draft', { from: plan.from, duration: plan.duration, rate: tempo });
+      return;
+    }
+    // 수정 중이고 새로 녹음하지 않았으면 저장된 녹음이 그대로 들린다.
+    const stored = d.editingId ? combos.find((c) => c.id === d.editingId) : undefined;
+    if (stored) {
+      const plan = clipPlan(stored, tempo);
+      voiceRef.current.playClip(stored.id, { from: plan.from, duration: plan.duration, rate: tempo });
+    }
+  }, [prime, stopSound, previewTimers, stRef, draftRef, voiceRef, combos]);
+
+  const previewCombo = useCallback(
+    (c: Combo) => {
+      prime();
+      stopSound();
+      previewTimers.clearAll();
+      const tempo = stRef.current.tempo;
+      const plan = clipPlan(c, tempo);
+      voiceRef.current.playClip(c.id, { from: plan.from, duration: plan.duration, rate: tempo });
     },
-    [draft.slots, openPicker]
+    [prime, stopSound, previewTimers, stRef, voiceRef]
   );
+
+  /** 이름 고치기 — 이름이 채워진 채로 무대의 이름 단계에 올라간다. 녹음은 그대로. */
+  const editCombo = useCallback((c: Combo) => {
+    dispatchDraft({ type: 'edit', combo: c });
+    setTab('combos');
+  }, []);
+
+  /** 다시 녹음 — 이름은 그대로, 녹음만 새로. 취소하면 원래 녹음이 남는다. */
+  const rerecordCombo = useCallback(
+    (c: Combo) => {
+      dispatchDraft({ type: 'edit', combo: c });
+      setTab('combos');
+      arm();
+    },
+    [arm]
+  );
+
   const editor: DraftEditor = useMemo(
     () => ({
-      onTap: tapStage,
-      onFinish: finishTaps,
+      onArm: arm,
+      onFinish: finishRec,
       onCancel: cancelDraft,
-      onRetap: arm,
       onListen: listenDraft,
-      onTextChange: changeDraftText,
-      onSlotPress: pressSlot,
+      onNameChange: changeName,
+      onSubmit: saveCombo,
     }),
-    [tapStage, finishTaps, cancelDraft, arm, listenDraft, changeDraftText, pressSlot]
+    [arm, finishRec, cancelDraft, listenDraft, changeName, saveCombo]
   );
-  /* 고르면 다음 빈 자리로. 마지막을 채우면 시트가 닫힌다(기획서 4.5). */
-  const pickMove = useCallback(
-    (id: string) => {
-      dispatchDraft({ type: 'pick', id });
-      const filled = draft.slots.map((s, i) => (i === draft.cursor ? id : s));
-      if (nextEmpty(filled, draft.cursor) < 0) closePicker();
-    },
-    [draft.slots, draft.cursor, closePicker]
-  );
-  const openSlot = useCallback((index: number) => dispatchDraft({ type: 'open', index }), []);
 
   const setAllCombos = useCallback((on: boolean) => dispatch({ type: 'setAllCombos', on }), [dispatch]);
 
-  /** 중복 안내에서 다시 넣기. 입력칸은 비우고 그 카드로 데려간다. */
-  const enableCombo = useCallback(
-    (id: string) => {
-      dispatch({ type: 'enableCombo', id });
-      dispatchDraft({ type: 'reset' });
-    },
+  const set = useCallback(
+    <K extends keyof Settings>(k: K, v: Settings[K]) =>
+      dispatch({ type: 'patchSettings', patch: { [k]: v } as Partial<Settings> }),
     [dispatch]
   );
 
   /* ---- 렌더 ---- */
 
-  const ready = combos.filter((c) => c.on && c.moves.length).length;
-  const wordList = allMoves.filter((m) => m.kind === wordKind);
-
+  const ready = combos.filter((c) => c.on).length;
   const bottomSafe = insets.bottom;
+
+  /* 저장 버튼은 이름 단계에서만 뜬다. 이름이 비어도 뜬다 — 눌러야 이유를 물을 수 있다. */
+  const saveFabShown = tab === 'combos' && draft.stage === 'named';
 
   /*
    * 키보드는 스크롤 뷰를 줄이지 않고 그 위에 겹친다. 그만큼을 더 비워야
-   * 마지막 줄의 편집칸이 키보드 위로 올라올 수 있다 — 안 비우면 스크롤이 거기서 끝난다.
+   * 마지막 카드가 키보드 위로 올라올 수 있다.
    */
   const scrollPad = (tab === 'combos' ? (saveFabShown ? 192 : 128) : 160) + bottomSafe + kb;
 
@@ -474,8 +306,8 @@ function Screen() {
   const [tabH, setTabH] = useState(0);
   const tabSlide = useRef(new Animated.Value(0)).current;
 
-  /* 탭바가 zIndex 40이라 TDS 시트(zIndex 없음) 위로 올라온다. 어느 시트가 열려도 비켜줘야 한다. */
-  const anySheetOpen = sheetOpen || pickerOpen || addMoveOpen;
+  /* 탭바가 zIndex 40이라 TDS 시트(zIndex 없음) 위로 올라온다. 시트가 열리면 비켜줘야 한다. */
+  const anySheetOpen = sheetOpen;
 
   useEffect(() => {
     Animated.timing(tabSlide, {
@@ -492,16 +324,17 @@ function Screen() {
     dispatch({ type: 'dismissUndo' });
   };
 
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const openSheet = useCallback(() => setSheetOpen(true), []);
+
   return (
     <View style={styles.root}>
       {/* ---------- 헤더 ---------- */}
-      <View
-        style={[styles.header, { paddingTop: insets.top + 24 }]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
         <View style={styles.inner}>
           <View style={styles.headerRow}>
             {tab === 'train' ? (
-              <Tap onPress={() => setSheetOpen(true)} accessibilityLabel="설정" style={styles.headerBtn}>
+              <Tap onPress={openSheet} accessibilityLabel="설정" style={styles.headerBtn}>
                 <SettingsIcon size={24} color={C.z600} />
               </Tap>
             ) : null}
@@ -514,9 +347,6 @@ function Screen() {
           training={training}
           callouts={callouts}
           settings={settings}
-          label={label}
-          beatOf={beatOf}
-          moveMap={moveMap}
           readyCount={ready}
           windowWidth={winW}
           bottomSafe={bottomSafe}
@@ -529,76 +359,35 @@ function Screen() {
           combos={combos}
           draft={draft}
           editor={editor}
-          duplicate={dupCombo}
-          label={label}
+          elapsed={elapsed}
+          clipMs={clipMs}
+          micAvailable={voice.micAvailable}
           readyCount={ready}
           bottomPad={scrollPad}
           onSetAll={setAllCombos}
           onToggle={toggleCombo}
           onPreview={previewCombo}
           onEdit={editCombo}
+          onRerecord={rerecordCombo}
           onRemove={removeCombo}
-          onEnable={enableCombo}
         />
       ) : null}
 
-      {tab === 'words' ? (
-        <WordsView
-          moves={wordList}
-          kind={wordKind}
-          onKindChange={setWordKind}
-          labels={labels}
-          beats={beats}
-          label={label}
-          beatOf={beatOf}
-          bottomPad={scrollPad}
-          editingId={wordsEditing}
-          onEditingChange={setWordsEditing}
-          onApplyNumbers={applyNumbers}
-          onResetBase={resetBaseLabels}
-          onChangeName={changeWordName}
-          onChangeBeat={changeWordBeat}
-          onReset={resetWord}
-          onDelete={deleteMove}
-          onPreview={previewWord}
-        />
-      ) : null}
-
-
-      {/* ---------- 저장 / 동작 추가 (z 30) ---------- */}
+      {/* ---------- 저장 (z 30) ---------- */}
       {/* FAB도 시트 위로 떠오른다(z 30 vs 시트 zIndex 없음). 시트가 열리면 걷어낸다. */}
-      {tab === 'combos' && saveFabShown && !anySheetOpen ? (
-        <View style={[styles.fabLayer, { bottom: (kb > 0 ? kb + 16 : LAYER.fab + bottomSafe) }]} pointerEvents="box-none">
+      {saveFabShown && !anySheetOpen ? (
+        <View style={[styles.fabLayer, { bottom: kb > 0 ? kb + 16 : LAYER.fab + bottomSafe }]} pointerEvents="box-none">
           <View style={[styles.inner, styles.fabRow]} pointerEvents="box-none">
             {editingId ? (
               <Tap onPress={cancelDraft} accessibilityLabel="수정 취소" style={styles.fabRound}>
                 <X size={20} color={C.z400} />
               </Tap>
             ) : null}
-            <Tap onPress={saveCombo} style={[styles.fabPill, canSave ? styles.fabPillOn : styles.fabPillOff]}>
-              {editingId ? <Check size={20} color={canSave ? C.white : C.z500} /> : <Plus size={20} color={canSave ? C.white : C.z500} />}
+            <Tap onPress={saveCombo} style={[styles.fabPill, styles.fabPillOn]}>
+              {editingId ? <Check size={20} color={C.white} /> : <Plus size={20} color={C.white} />}
               <Typo level="button" weight="semibold" color={C.white}>
                 {editingId ? '수정 저장' : '콤보 저장'}
               </Typo>
-            </Tap>
-          </View>
-        </View>
-      ) : null}
-
-      {/*
-        타자 중에는 걷어낸다. 키보드 위 자리는 편집칸의 들어보기·확인 단추 자리이고,
-        FAB이 거기 서면 그 둘을 덮는다. 이름을 적는 동안 동작 추가를 누를 일도 없다.
-        콤보 탭의 저장 FAB은 반대다 — 타자 중에 눌러야 하므로 키보드 위로 따라 올라간다.
-      */}
-      {tab === 'words' && !anySheetOpen && kb === 0 ? (
-        <View style={[styles.fabLayer, { bottom: LAYER.fab + bottomSafe }]} pointerEvents="box-none">
-          <View style={[styles.inner, styles.fabEnd]} pointerEvents="box-none">
-            <Tap
-              onPress={openAddMove}
-              accessibilityLabel="동작 추가"
-              style={styles.fabCircle}
-            >
-              <Plus size={24} color={C.white} />
             </Tap>
           </View>
         </View>
@@ -608,8 +397,7 @@ function Screen() {
       {/*
         TDS Toast는 자리를 스스로 잡는다 — bottomOffset에 하단 안전영역을 더해서 깐다.
         그래서 여기서는 안전영역을 빼고 넘긴다. 두 번 더하면 그만큼 떠버린다.
-        훈련 탭에서는 띄우지 않는다(기획서 9장). 삭제는 콤보·호출어 탭에서만 일어나고
-        탭을 옮기면 goTab이 정리하므로, 안 떠 있는 동안 시계가 멈춰 있을 일은 없다.
+        훈련 탭에서는 띄우지 않는다(기획서 8장).
 
         key와 duration 둘 다 TDS 쪽 사정이다.
         시계는 마운트 때 한 번만 걸리므로 되돌리기가 새로 열릴 때마다 갈아 끼워야 다시 감긴다.
@@ -620,17 +408,14 @@ function Screen() {
         open={undo != null && tab !== 'train'}
         text={undo?.text ?? ''}
         duration={TOAST_MS / 1000}
-        bottomOffset={kb > 0 ? kb + 80 - bottomSafe : anyFabShown ? LAYER.toastWithFab : LAYER.toastAlone}
+        bottomOffset={kb > 0 ? kb + 80 - bottomSafe : saveFabShown ? LAYER.toastWithFab : LAYER.toastAlone}
         onClose={dismissUndo}
         button={<Toast.Button onPress={restoreUndo}>되돌리기</Toast.Button>}
       />
 
       {/* ---------- 탭바 (z 40) ---------- */}
       <Animated.View
-        style={[
-          styles.tabLayer,
-          { bottom: LAYER.tabBar + bottomSafe, transform: [{ translateY: tabSlide }] },
-        ]}
+        style={[styles.tabLayer, { bottom: LAYER.tabBar + bottomSafe, transform: [{ translateY: tabSlide }] }]}
         pointerEvents={anySheetOpen ? 'none' : 'box-none'}
         onLayout={(e) => setTabH(e.nativeEvent.layout.height)}
       >
@@ -652,44 +437,42 @@ function Screen() {
         </View>
       </Animated.View>
 
-      <DoneOverlay
-        visible={phase === 'done'}
-        settings={settings}
-        stats={stats}
-        onRestart={start}
-        onQuit={stop}
-      />
-      <MovePickerSheet
-        open={pickerOpen}
-        onClose={closePicker}
-        moves={allMoves}
-        label={label}
-        onPick={pickMove}
-        tray={
-          <SlotRow
-            slots={draft.slots}
-            cursor={draft.cursor}
-            label={label}
-            onPress={openSlot}
-            pressLabel={(i) => `${i + 1}번째 자리로`}
-          />
-        }
-      />
-      <AddMoveSheet open={addMoveOpen} onClose={closeAddMove} onAdded={afterAddMove} />
+      <DoneOverlay visible={phase === 'done'} settings={settings} stats={stats} onRestart={start} onQuit={stop} />
+
+      {/* 색을 얹을 필요가 없는 자리라 TDS를 그대로 받는다(design-system.md). */}
+      <MicNotice open={micNoticeOpen} onClose={() => setMicNoticeSeen(true)} />
+
       <SettingsSheet
         open={sheetOpen}
         onClose={closeSheet}
         settings={settings}
         onChange={set}
         running={running}
-        voices={voice.voices}
-        onTestSound={() => {
+        onTestBell={() => {
           prime();
-          speak(`${label('jab')} ${label('cross')} ${label('lowkick')}`);
+          voiceRef.current.bell(1);
         }}
       />
 
       {voice.engine}
+    </View>
+  );
+}
+
+/** 마이크를 못 쓰는 환경에 세션당 한 번. 기획서 4.4. */
+function MicNotice({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <View style={styles.micNotice}>
+      <View style={styles.micNoticeBox}>
+        <Typo level="subtitle" weight="semibold" color={C.white}>마이크를 못 써</Typo>
+        <Typo level="caption" color={C.z400} style={styles.micNoticeText}>
+          이 기기에서는 마이크를 못 써서 콤보를 만들 수 없어. 훈련 타이머는 돼.
+        </Typo>
+        <Tap onPress={onClose} accessibilityLabel="알림 닫기" style={styles.micNoticeBtn}>
+          <Typo level="button" weight="semibold" color={C.white}>알겠어</Typo>
+        </Tap>
+      </View>
     </View>
   );
 }
@@ -703,7 +486,6 @@ const styles = StyleSheet.create({
 
   fabLayer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 20, zIndex: LAYER.zFab },
   fabRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  fabEnd: { flexDirection: 'row', justifyContent: 'flex-end' },
   fabRound: {
     width: 56,
     height: 56,
@@ -715,10 +497,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 6,
   },
-  fabCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', elevation: 6 },
   fabPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 32, height: 56, borderRadius: 28, elevation: 6 },
   fabPillOn: { backgroundColor: ACCENT },
-  fabPillOff: { backgroundColor: C.card, borderWidth: 1, borderColor: C.line },
 
   tabLayer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 20, alignItems: 'center', zIndex: LAYER.zTabBar },
   tabBar: {
@@ -734,4 +514,28 @@ const styles = StyleSheet.create({
   tabItem: { alignItems: 'center', gap: 6, paddingHorizontal: 24, paddingVertical: 6, borderRadius: 12 },
   tabItemOn: { backgroundColor: ACCENT },
 
+  micNotice: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    zIndex: LAYER.zToast,
+  },
+  micNoticeBox: {
+    width: '100%',
+    maxWidth: MAXW,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 24,
+    gap: 12,
+  },
+  micNoticeText: { lineHeight: 20 },
+  micNoticeBtn: { marginTop: 12, height: 52, borderRadius: 26, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' },
 });

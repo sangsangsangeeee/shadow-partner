@@ -8,19 +8,22 @@
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../../../commons/test-support/tdsMock'));
 
-const writes: { key: string; value: string }[] = [];
-const removes: string[] = [];
+/* jest는 mock 팩토리가 바깥 변수를 보는 걸 막는다. mock 접두어가 붙은 것만 예외다. */
+const mockWrites: { key: string; value: string }[] = [];
+const mockRemoves: string[] = [];
+/** hydrate가 읽어 갈 값. 테스트마다 갈아 끼운다. */
+const mockStored = new Map<string, string>();
 
-/* 저장은 이제 토스 저장소로 나간다. 무엇이 언제 나갔는지만 보면 되므로 쓰기를 붙잡아 둔다. */
+/* 저장은 토스 저장소로 나간다. 무엇이 언제 나갔는지만 보면 되므로 쓰기를 붙잡아 둔다. */
 jest.mock('@apps-in-toss/native-modules', () => ({
   Storage: {
-    getItem: () => Promise.resolve(null),
+    getItem: (key: string) => Promise.resolve(mockStored.get(key) ?? null),
     setItem: (key: string, value: string) => {
-      writes.push({ key, value });
+      mockWrites.push({ key, value });
       return Promise.resolve();
     },
     removeItem: (key: string) => {
-      removes.push(key);
+      mockRemoves.push(key);
       return Promise.resolve();
     },
     clearItems: () => Promise.resolve(),
@@ -29,8 +32,13 @@ jest.mock('@apps-in-toss/native-modules', () => ({
   generateHapticFeedback: jest.fn(),
 }));
 
-import { dispatchMaterial, flushMaterial, resetMaterial } from '../useMaterial';
-import { STORAGE_KEYS } from '../../../../commons/constants';
+const writes = mockWrites;
+const removes = mockRemoves;
+const stored = mockStored;
+
+import { dispatchMaterial, flushMaterial, resetMaterial, useMaterial } from '../useMaterial';
+import { LEGACY_KEYS, STORAGE_KEYS } from '../../../../commons/constants';
+import { renderHook, waitFor } from '@testing-library/react-native';
 
 /** 저장은 loaded 뒤에만 일어난다. 읽기를 흉내내 창을 연다. */
 const hydrate = () => dispatchMaterial({ type: 'hydrate', value: {} });
@@ -39,6 +47,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   writes.length = 0;
   removes.length = 0;
+  stored.clear();
   resetMaterial();
 });
 
@@ -48,13 +57,15 @@ afterEach(() => {
 
 const settingsWrites = () => writes.filter((w) => w.key === STORAGE_KEYS.settings);
 
+const CLIP = { data: 'data:audio/mp4;base64,AAAA', ms: 2100, head: 0.3, tail: 1.8 };
+
 describe('창 안의 연속 조작은 한 번만 쓴다', () => {
   it('슬라이더를 끄는 동안 열 번 바뀌어도 쓰기는 한 번이고, 마지막 값이 남는다', () => {
     hydrate();
     writes.length = 0;
 
     for (let i = 1; i <= 10; i++) {
-      dispatchMaterial({ type: 'patchSettings', patch: { tempo: 0.5 + i * 0.05 } });
+      dispatchMaterial({ type: 'patchSettings', patch: { tempo: 0.8 + i * 0.01 } });
     }
     // 아직 창이 열려 있다
     expect(settingsWrites()).toHaveLength(0);
@@ -62,7 +73,7 @@ describe('창 안의 연속 조작은 한 번만 쓴다', () => {
     jest.advanceTimersByTime(300);
 
     expect(settingsWrites()).toHaveLength(1);
-    expect(JSON.parse(settingsWrites()[0]!.value).tempo).toBeCloseTo(1.0);
+    expect(JSON.parse(settingsWrites()[0]!.value).tempo).toBeCloseTo(0.9);
   });
 
   it('창이 닫힌 뒤의 조작은 새 쓰기다', () => {
@@ -71,7 +82,7 @@ describe('창 안의 연속 조작은 한 번만 쓴다', () => {
 
     dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.2 } });
     jest.advanceTimersByTime(300);
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.4 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.3 } });
     jest.advanceTimersByTime(300);
 
     expect(settingsWrites()).toHaveLength(2);
@@ -83,7 +94,7 @@ describe('조각은 서로를 끌고 가지 않는다', () => {
     hydrate();
     writes.length = 0;
 
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.5 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.1 } });
     jest.advanceTimersByTime(300);
 
     expect(writes.map((w) => w.key)).toEqual([STORAGE_KEYS.settings]);
@@ -93,11 +104,12 @@ describe('조각은 서로를 끌고 가지 않는다', () => {
     hydrate();
     writes.length = 0;
 
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.5 } });
-    dispatchMaterial({ type: 'setLabel', id: 'jab', value: '원' });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.1 } });
+    dispatchMaterial({ type: 'addCombo', name: '원투', clip: CLIP });
     jest.advanceTimersByTime(300);
 
-    expect(writes.map((w) => w.key).sort()).toEqual([STORAGE_KEYS.labels, STORAGE_KEYS.settings].sort());
+    expect(writes.map((w) => w.key).sort()).toContain(STORAGE_KEYS.settings);
+    expect(writes.map((w) => w.key)).toContain(STORAGE_KEYS.combos);
   });
 });
 
@@ -106,20 +118,20 @@ describe('flush — 앱이 내려가는 순간', () => {
     hydrate();
     writes.length = 0;
 
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.9 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.25 } });
     expect(settingsWrites()).toHaveLength(0);
 
     flushMaterial();
 
     expect(settingsWrites()).toHaveLength(1);
-    expect(JSON.parse(settingsWrites()[0]!.value).tempo).toBeCloseTo(1.9);
+    expect(JSON.parse(settingsWrites()[0]!.value).tempo).toBeCloseTo(1.25);
   });
 
   it('flush 뒤에 창이 또 열려 같은 값을 두 번 쓰지 않는다', () => {
     hydrate();
     writes.length = 0;
 
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.9 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.25 } });
     flushMaterial();
     jest.advanceTimersByTime(300);
 
@@ -132,7 +144,7 @@ describe('되감기는 미뤄둔 것을 버린다', () => {
     hydrate();
     writes.length = 0;
 
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.9 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.25 } });
     resetMaterial();
     jest.advanceTimersByTime(300);
 
@@ -142,7 +154,7 @@ describe('되감기는 미뤄둔 것을 버린다', () => {
 
 describe('읽기 전에는 쓰지 않는다', () => {
   it('loaded 전의 조작은 창에도 들어가지 않는다', () => {
-    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.9 } });
+    dispatchMaterial({ type: 'patchSettings', patch: { tempo: 1.25 } });
     jest.advanceTimersByTime(300);
 
     expect(writes).toHaveLength(0);
@@ -150,44 +162,69 @@ describe('읽기 전에는 쓰지 않는다', () => {
 });
 
 /*
- * 녹음은 2초에 50KB다. 콤보 목록 키에 같이 넣으면 콤보 하나를 켜고 끌 때마다 전부를 다시 쓴다.
- * 그래서 콤보별 키로 따로 나가고, 콤보 목록에는 자리만 남는다(기획서 5장).
+ * 녹음은 초당 25KB다. 콤보 목록 키에 같이 넣으면 콤보 하나를 켜고 끌 때마다 전부를 다시 쓴다.
+ * 그래서 콤보별 키로 따로 나가고, 콤보 목록에는 잰 값만 남는다(기획서 5장).
  */
 describe('녹음은 콤보별 키로 따로 쓴다', () => {
-  const clip = { meta: { offset: 0.3, ms: 2100 }, data: 'data:audio/mp4;base64,AAAA' };
   const clipWrites = () => writes.filter((w) => w.key.startsWith(STORAGE_KEYS.clip));
 
-  it('넣으면 콤보 목록에는 자리만, 본체는 sbc:clip:<id>로 간다', () => {
+  it('넣으면 콤보 목록에는 잰 값만, 본체는 sbc:clip:<id>로 간다', () => {
     hydrate();
     writes.length = 0;
-    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    dispatchMaterial({ type: 'addCombo', name: '원투', clip: CLIP });
     jest.advanceTimersByTime(300);
 
     const combos = writes.find((w) => w.key === STORAGE_KEYS.combos)!;
     expect(combos.value).not.toContain('base64');
     expect(clipWrites()).toHaveLength(1);
-    expect(JSON.parse(clipWrites()[0]!.value)).toBe(clip.data);
+    expect(JSON.parse(clipWrites()[0]!.value)).toBe(CLIP.data);
   });
 
   it('다른 콤보를 켜고 꺼도 녹음은 다시 안 쓴다', () => {
     hydrate();
-    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    dispatchMaterial({ type: 'addCombo', name: '원투', clip: CLIP });
     jest.advanceTimersByTime(300);
+    const id = JSON.parse(writes.find((w) => w.key === STORAGE_KEYS.combos)!.value)[0].id as string;
     writes.length = 0;
 
-    dispatchMaterial({ type: 'addCombo', moves: ['cross'] });
+    dispatchMaterial({ type: 'toggleCombo', id });
     jest.advanceTimersByTime(300);
     expect(clipWrites()).toHaveLength(0);
   });
 
   it('콤보를 지우면 그 키를 저장소에서도 걷는다', () => {
     hydrate();
-    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    dispatchMaterial({ type: 'addCombo', name: '원투', clip: CLIP });
     jest.advanceTimersByTime(300);
     const id = JSON.parse(writes.find((w) => w.key === STORAGE_KEYS.combos)!.value)[0].id as string;
 
     dispatchMaterial({ type: 'removeCombo', id });
     jest.advanceTimersByTime(300);
-    expect(removes).toEqual([STORAGE_KEYS.clip + id]);
+    expect(removes).toContain(STORAGE_KEYS.clip + id);
+  });
+});
+
+/*
+ * v1의 자료는 버린다(기획서 5장). 녹음이 없는 콤보는 이제 부를 방법이 없고,
+ * 동작·호출어·리듬 키는 읽지도 않는다. 읽기가 실물과 다르면 기기에서만 드러난다.
+ */
+describe('hydrate — v1이 남긴 것을 버린다', () => {
+  it('ms 없는 콤보는 버리고, 옛 키는 지운다', async () => {
+    stored.set(
+      STORAGE_KEYS.combos,
+      JSON.stringify([
+        { id: 'old', moves: ['jab', 'cross'], on: true },
+        { id: 'new', name: '원투', on: true, ms: 2100, head: 0.3, tail: 1.8 },
+      ])
+    );
+    stored.set(STORAGE_KEYS.clip + 'new', JSON.stringify('clip-new'));
+    LEGACY_KEYS.forEach((k) => stored.set(k, '[]'));
+
+    const { result } = renderHook(() => useMaterial());
+    await waitFor(() => expect(result.current.state.loaded).toBe(true));
+
+    expect(result.current.state.combos.map((c) => c.id)).toEqual(['new']);
+    expect(result.current.state.clips.new).toBe('clip-new');
+    await waitFor(() => expect(removes).toEqual(expect.arrayContaining([...LEGACY_KEYS])));
   });
 });

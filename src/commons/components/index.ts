@@ -7,7 +7,6 @@ export * from './Segmented';
 export * from './Slider';
 export * from './Stepper';
 export * from './Stopwatch';
-export * from './SwipeArea';
 export * from './Tap';
 export * from './Typo';
 export * from './VoiceEngine';

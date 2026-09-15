@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
-import { resetMaterial } from '../ShadowCoach/hooks';
+import { dispatchMaterial, resetMaterial } from '../ShadowCoach/hooks';
 import { resetStorage } from '../../commons/test-support/storageMock';
 
 /* 아래 목들은 다른 화면 테스트와 같은 이유로 경계에서 갈아끼운다. */
@@ -12,10 +12,6 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 /* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -33,7 +29,6 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
     initialWindowMetrics: { frame: { x: 0, y: 0, width: 390, height: 844 }, insets },
   };
 });
-
 
 jest.mock('@granite-js/native/react-native-webview', () => {
   const { View } = jest.requireActual('react-native');
@@ -55,7 +50,6 @@ jest.mock('@apps-in-toss/native-modules', () => ({
  */
 type Captured = Record<string, unknown>;
 const mockCardProps: Captured[] = [];
-const mockRowProps: Captured[] = [];
 
 jest.mock('../ShadowCoach/parts', () => {
   const actual = jest.requireActual('../ShadowCoach/parts');
@@ -65,10 +59,6 @@ jest.mock('../ShadowCoach/parts', () => {
     ComboCard: (props: Captured) => {
       mockCardProps.push(props);
       return React2.createElement(actual.ComboCard, props);
-    },
-    WordRow: (props: Captured) => {
-      mockRowProps.push(props);
-      return React2.createElement(actual.WordRow, props);
     },
   };
 });
@@ -92,16 +82,28 @@ beforeEach(() => {
   resetStorage();
   resetMaterial();
   mockCardProps.length = 0;
-  mockRowProps.length = 0;
   mockTrainProps.length = 0;
 });
 
+const seed = (...names: string[]) => {
+  act(() => {
+    dispatchMaterial({ type: 'hydrate', value: {} });
+    names.forEach((name, i) =>
+      dispatchMaterial({
+        type: 'addCombo',
+        name,
+        clip: { data: `clip-${i}`, ms: 2000, head: 0.2, tail: 1.6 },
+      })
+    );
+  });
+};
+
 const setup = async () => {
   render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
+    <Layout>
+      <ShadowCoach />
+    </Layout>
+  );
   await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
 };
 
@@ -111,6 +113,7 @@ const identities = (batch: Captured[], key: string) => new Set(batch.map((p) => 
 describe('memo — 목록 아이템에 넘어가는 콜백의 신원', () => {
   it('콤보를 켜고 꺼도 ComboCard의 콜백은 그대로다', async () => {
     await setup();
+    seed('원투', '로우킥');
     fireEvent.press(screen.getByLabelText('콤보'));
     await act(async () => {});
 
@@ -125,60 +128,10 @@ describe('memo — 목록 아이템에 넘어가는 콜백의 신원', () => {
     const after = [...mockCardProps];
     expect(after.length).toBeGreaterThan(0);
 
-    for (const key of ['onToggle', 'onToggleMenu', 'onPreview', 'onEdit', 'onRemove', 'onMeasure']) {
+    for (const key of ['onToggle', 'onToggleMenu', 'onPreview', 'onEdit', 'onRerecord', 'onRemove']) {
       const ids = identities([...before, ...after], key);
       expect({ key, count: ids.size }).toEqual({ key, count: 1 });
     }
-  });
-
-  it('호출어를 고쳐도 WordRow의 콜백은 그대로다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-    await act(async () => {});
-
-    const before = [...mockRowProps];
-    expect(before.length).toBeGreaterThan(0);
-    mockRowProps.length = 0;
-
-    // 한 줄을 펼치고 이름을 고친다
-    fireEvent.press(screen.getByText('잽'));
-    await act(async () => {});
-    fireEvent.changeText(screen.getByPlaceholderText('잽'), '원');
-    await act(async () => {});
-
-    const after = [...mockRowProps];
-    expect(after.length).toBeGreaterThan(0);
-
-    for (const key of [
-      'onOpen',
-      'onClose',
-      'onChangeName',
-      'onChangeBeat',
-      'onReset',
-      'onDelete',
-      'onPreview',
-    ]) {
-      const ids = identities([...before, ...after], key);
-      expect({ key, count: ids.size }).toEqual({ key, count: 1 });
-    }
-  });
-
-  it('한 줄에서 타자를 쳐도 다른 줄의 prop은 바뀌지 않는다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-    await act(async () => {});
-    fireEvent.press(screen.getByText('잽'));
-    await act(async () => {});
-
-    mockRowProps.length = 0;
-    fireEvent.changeText(screen.getByPlaceholderText('잽'), '원투');
-    await act(async () => {});
-
-    // 고친 줄(잽)만 name이 달라지고 나머지는 그대로여야 한다
-    const changed = mockRowProps.filter((p) => (p['move'] as { id: string }).id === 'jab');
-    const others = mockRowProps.filter((p) => (p['move'] as { id: string }).id !== 'jab');
-    expect(changed.some((p) => p['name'] === '원투')).toBe(true);
-    expect(others.every((p) => p['name'] !== '원투')).toBe(true);
   });
 });
 
@@ -188,7 +141,7 @@ describe('memo — 목록 아이템에 넘어가는 콜백의 신원', () => {
  * 정작 손가락을 못 따라간다. 실기기에서 "반응이 느리다"로 잡힌 것이 이것이다.
  */
 describe('slider — 끄는 동안 화면을 흔들지 않는다', () => {
-  it('여덟 칸을 끌어도 훈련 화면은 그대로, 손을 멈추면 한 번만 들어간다', async () => {
+  it('여러 칸을 끌어도 훈련 화면은 그대로, 손을 멈추면 한 번만 들어간다', async () => {
     jest.useFakeTimers();
     await setup();
     fireEvent.press(screen.getByLabelText('설정'));
@@ -197,14 +150,15 @@ describe('slider — 끄는 동안 화면을 흔들지 않는다', () => {
     const slider = screen.getByLabelText('템포');
     mockTrainProps.length = 0;
 
-    for (let i = 0; i < 8; i++) {
+    // 템포는 0.8~1.3 / 0.05라 여덟 칸이면 상한에 닿는다. 여섯 칸만 민다.
+    for (let i = 0; i < 6; i++) {
       fireEvent(slider, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     }
 
     // 끄는 동안 자료는 안 건드린다 — 화면은 한 번도 다시 안 그려진다
     expect(mockTrainProps).toHaveLength(0);
     // 숫자는 손가락을 따라간다. 저장을 미룬 것이지 안 보여주는 게 아니다.
-    expect(screen.getByText('1.40배')).toBeTruthy();
+    expect(screen.getByText('1.30배')).toBeTruthy();
 
     await act(async () => {
       jest.advanceTimersByTime(300);
@@ -212,7 +166,7 @@ describe('slider — 끄는 동안 화면을 흔들지 않는다', () => {
 
     // 손을 멈추면 그제서야, 그것도 한 번만
     expect(mockTrainProps).toHaveLength(1);
-    expect((mockTrainProps[0] as { settings: { tempo: number } }).settings.tempo).toBeCloseTo(1.4);
+    expect((mockTrainProps[0] as { settings: { tempo: number } }).settings.tempo).toBeCloseTo(1.3);
 
     jest.useRealTimers();
   });

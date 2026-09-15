@@ -1,15 +1,10 @@
 import React from 'react';
-import { Keyboard, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
-import { resetMaterial } from '../ShadowCoach/hooks';
+import { dispatchMaterial, resetMaterial } from '../ShadowCoach/hooks';
 import { resetStorage } from '../../commons/test-support/storageMock';
-import { fireSwipe, resetGestureMock, swipeAreaCount } from '../../commons/test-support/gestureMock';
-import { CHIP_TRAY_H, TOAST_MS } from '../../commons/constants';
-
-/** SwipeArea가 넘김으로 인정하는 거리. 여기가 바뀌면 이 테스트도 같이 움직여야 한다. */
-const COMMIT = 60;
+import { TOAST_MS } from '../../commons/constants';
 
 /*
  * @granite-js/native/* 는 실제 패키지를 그대로 재수출하는 얇은 껍데기다.
@@ -22,10 +17,6 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 /* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -42,7 +33,6 @@ jest.mock('@granite-js/native/react-native-safe-area-context', () => {
     initialWindowMetrics: { frame: { x: 0, y: 0, width: 390, height: 844 }, insets },
   };
 });
-
 
 // 소리 엔진은 화면 밖 웹뷰다. 렌더만 되면 된다.
 jest.mock('@granite-js/native/react-native-webview', () => {
@@ -63,43 +53,43 @@ beforeEach(() => {
   // 저장소도 자료도 파일 안에서 공유된다. 테스트마다 초기 상태에서 시작한다.
   resetStorage();
   resetMaterial();
-  // 제스처 대역도 트리 밖에 산다. 안 비우면 앞 테스트의 스와이프 영역이 남는다.
-  resetGestureMock();
 });
 
-
-/**
- * 무대를 n번 두드리고 완료한다. 첫 터치는 마이크를 켜는 것이라 세지 않는다.
- * 간격 300ms — 값 자체는 순수 테스트가 본다. 마이크는 대역이라 영영 안 켜진다 — 녹음 없이 저장되는 길이다.
+/*
+ * 마이크는 대역에서 영영 안 켜진다 — 웹뷰가 대역이라 recordEvent가 올라올 길이 없다.
+ * 그래서 콤보는 자료에 직접 심는다. 녹음이 실제로 도는 순서는 comboDraft 순수 테스트가 본다.
  */
-const tapCombo = (n: number) => {
-  const stage = screen.getByLabelText('두드리는 무대');
-  fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 500 } });
-  for (let i = 0; i < n; i++) fireEvent(stage, 'pressIn', { nativeEvent: { timestamp: 1000 + i * 300 } });
-  fireEvent.press(screen.getByText('완료'));
+const seed = (...names: string[]) => {
+  act(() => {
+    dispatchMaterial({ type: 'hydrate', value: {} });
+    names.forEach((name, i) =>
+      dispatchMaterial({
+        type: 'addCombo',
+        name,
+        clip: { data: `clip-${i}`, ms: 2000 + i * 100, head: 0.2, tail: 1.6 },
+      })
+    );
+  });
 };
 
 const setup = async () => {
   const view = render(
-      <Layout>
-        <ShadowCoach />
-      </Layout>
-    );
+    <Layout>
+      <ShadowCoach />
+    </Layout>
+  );
   // 저장소를 읽고 나면 loaded가 켜진다. 탭바는 어느 탭에서도 서 있어서 렌더 완료 신호로 삼는다.
   await waitFor(() => expect(screen.getByLabelText('훈련')).toBeTruthy());
   return view;
 };
 
 describe('nav — 하단 탭 전환', () => {
-  it('세 탭을 오간다', async () => {
+  it('두 탭을 오간다', async () => {
     await setup();
     expect(screen.getByText('시작')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('콤보'));
-    expect(screen.getByText('두드려서 시작')).toBeTruthy();
-
-    fireEvent.press(screen.getByLabelText('호출어'));
-    expect(screen.getByText('번호로 일괄 변경')).toBeTruthy();
+    expect(screen.getByText('눌러서 녹음')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('훈련'));
     expect(screen.getByText('시작')).toBeTruthy();
@@ -133,120 +123,100 @@ describe('소리 엔진 웹뷰가 레이아웃을 먹지 않는다', () => {
   });
 });
 
-describe('fabshow — 저장 버튼 노출 조건', () => {
-  it('두드려서 자리를 만들면 뜬다', async () => {
+describe('empty — 첫 실행은 빈 목록이다', () => {
+  it('초기 콤보가 없고 안내 한 줄만 있다', async () => {
     await setup();
     fireEvent.press(screen.getByLabelText('콤보'));
-    expect(screen.queryByText('콤보 저장')).toBeNull();
-    expect(screen.queryByPlaceholderText(/잽/)).toBeNull();
+    // 기획서 5장 — 초기 콤보도 없다. 첫 실행은 빈 목록이다.
+    expect(screen.getByText('눌러서 첫 콤보를 녹음해')).toBeTruthy();
+    expect(screen.queryByText(/콤보 \d+개/)).toBeNull();
+  });
+});
 
-    tapCombo(2);
-    // 자리가 비어 있어도 버튼은 있어야 이유를 물을 수 있다. 기획서 4.4
+describe('record — 무대의 상태', () => {
+  it('누르면 녹음 중으로 가고, 대역이라 마이크는 안 켜진다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+
+    fireEvent.press(screen.getByLabelText('녹음 무대'));
+    await act(async () => {});
+
+    // 대역 웹뷰는 recStarted를 못 보낸다 — 켜는 중에 머문다
+    expect(screen.getByText('마이크 켜는 중…')).toBeTruthy();
+    expect(screen.getByText('완료')).toBeTruthy();
+  });
+
+  it('완료하면 이름 단계로 가고 저장 버튼이 뜬다', async () => {
+    await setup();
+    fireEvent.press(screen.getByLabelText('콤보'));
+    fireEvent.press(screen.getByLabelText('녹음 무대'));
+    await act(async () => {});
+    fireEvent.press(screen.getByText('완료'));
+    await act(async () => {});
+
     expect(screen.getByText('콤보 저장')).toBeTruthy();
-    expect(screen.getByPlaceholderText(/잽/)).toBeTruthy();
+    expect(screen.getByPlaceholderText(/이름/)).toBeTruthy();
   });
 });
 
-describe('fab — 저장 안내', () => {
-  it('빈 자리·인식 실패·정상 저장이 다르게 안내된다', async () => {
+describe('name — 죽은 버튼 금지', () => {
+  it('이름이 비면 이유를 말하고, 녹음이 없으면 그것도 말한다', async () => {
     await setup();
     fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
+    fireEvent.press(screen.getByLabelText('녹음 무대'));
+    await act(async () => {});
+    fireEvent.press(screen.getByText('완료'));
+    await act(async () => {});
 
+    // 이름이 먼저다 — 기획서 4.4는 이름을 필수로 못 박았다
     fireEvent.press(screen.getByText('콤보 저장'));
-    expect(screen.getByText(/빈 자리가 2개야/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('이름을 적어줘.')).toBeTruthy());
 
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '엘보');
+    // 이름을 적어도 대역에는 녹음이 없다
+    fireEvent.changeText(screen.getByPlaceholderText(/이름/), '원투');
     fireEvent.press(screen.getByText('콤보 저장'));
-    expect(screen.getByText(/적은 말을 못 알아들었어/)).toBeTruthy();
-
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 하이킥');
-    fireEvent.press(screen.getByText('콤보 저장'));
-    // 새 콤보는 목록 맨 위로, 무대는 쉬는 상태로
-    await waitFor(() => expect(screen.getByText('콤보 5개 · 5개 사용')).toBeTruthy());
-    expect(screen.getByText('두드려서 시작')).toBeTruthy();
-  });
-
-  it('자리보다 많이 적으면 넘친 걸 말하고 막는다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 잽 잽');
-    expect(screen.getByText(/뒤의 1개는 안 들어갔어/)).toBeTruthy();
-    fireEvent.press(screen.getByText('콤보 저장'));
-    expect(screen.getByText(/다시 두드리거나 줄여줘/)).toBeTruthy();
-    expect(screen.getByText('콤보 4개 · 4개 사용')).toBeTruthy();
-  });
-});
-
-describe('slot — 한 줄로 채우기와 자리 비우기', () => {
-  it('적은 순서대로 자리에 들어가고, 비우면 자리는 남고 입력창은 비운다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(3);
-    const input = screen.getByPlaceholderText(/잽/);
-
-    fireEvent.changeText(input, '1-2-3 엘보');
-    expect(screen.getByLabelText('잽 비우기')).toBeTruthy();
-    expect(screen.getByLabelText('스트레이트 비우기')).toBeTruthy();
-    expect(screen.getByLabelText('레프트훅 비우기')).toBeTruthy();
-    // 사용자가 친 말은 사라지지 않는다
-    expect(screen.getByText(/못 알아들음: 엘보/)).toBeTruthy();
-
-    fireEvent.press(screen.getByLabelText('잽 비우기'));
-    await waitFor(() => expect(screen.getByLabelText('1번째 자리')).toBeTruthy());
-    // 자리가 곧 두드린 박이라 나머지는 제자리에 남는다
-    expect(screen.getByLabelText('스트레이트 비우기')).toBeTruthy();
-    expect(screen.getByLabelText('레프트훅 비우기')).toBeTruthy();
-    // 빈 자리를 글로 적을 수 없어 입력창은 비운다
-    expect(screen.getByPlaceholderText(/잽/).props.value).toBe('');
-  });
-});
-
-describe('dup — 중복 차단', () => {
-  it('동작 순서가 완전히 같으면 저장을 막는다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(3);
-    // SEED에 있는 잽 스트레이트 로우킥
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '잽 스트레이트 로우킥');
-    await waitFor(() => expect(screen.getByText('이미 저장된 콤보야.')).toBeTruthy());
-    expect(screen.getByText('목록에서 보기')).toBeTruthy();
-  });
-
-  it('순서가 다르면 다른 훈련이라 막지 않는다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(3);
-    fireEvent.changeText(screen.getByPlaceholderText(/잽/), '로우킥 스트레이트 잽');
-    await waitFor(() => expect(screen.queryByText('이미 저장된 콤보야.')).toBeNull());
+    await waitFor(() => expect(screen.getByText(/녹음이 없어/)).toBeTruthy());
   });
 });
 
 describe('undo — 삭제와 되돌리기', () => {
   it('확인 없이 지우고 되돌리기 토스트를 띄운다', async () => {
     await setup();
+    seed('원투', '로우킥');
     fireEvent.press(screen.getByLabelText('콤보'));
-    expect(screen.getByText('콤보 4개 · 4개 사용')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('콤보 2개 · 2개 사용')).toBeTruthy());
 
     fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
     fireEvent.press(screen.getByText('삭제'));
 
-    await waitFor(() => expect(screen.getByText('콤보 3개 · 3개 사용')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
     expect(screen.getByText('되돌리기')).toBeTruthy();
 
     fireEvent.press(screen.getByText('되돌리기'));
-    await waitFor(() => expect(screen.getByText('콤보 4개 · 4개 사용')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('콤보 2개 · 2개 사용')).toBeTruthy());
+  });
+
+  it('지운 것의 이름으로 알린다', async () => {
+    await setup();
+    seed('원투');
+    fireEvent.press(screen.getByLabelText('콤보'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
+
+    fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
+    fireEvent.press(screen.getByText('삭제'));
+    await waitFor(() => expect(screen.getByText('원투 지웠어')).toBeTruthy());
   });
 
   it('탭을 옮기면 토스트를 정리한다', async () => {
     await setup();
+    seed('원투');
     fireEvent.press(screen.getByLabelText('콤보'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
     fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
     fireEvent.press(screen.getByText('삭제'));
     await waitFor(() => expect(screen.getByText('되돌리기')).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText('호출어'));
+    fireEvent.press(screen.getByLabelText('훈련'));
     expect(screen.queryByText('되돌리기')).toBeNull();
   });
 
@@ -254,6 +224,7 @@ describe('undo — 삭제와 되돌리기', () => {
   it('정해진 시간이 지나면 스스로 접는다', async () => {
     jest.useFakeTimers();
     await setup();
+    seed('원투', '로우킥');
     fireEvent.press(screen.getByLabelText('콤보'));
     fireEvent.press(screen.getAllByLabelText('더보기')[0]!);
     fireEvent.press(screen.getByText('삭제'));
@@ -271,7 +242,7 @@ describe('undo — 삭제와 되돌리기', () => {
     expect(screen.queryByText('되돌리기')).toBeNull();
 
     // 접혀도 지운 건 지워진 채로 남는다
-    expect(screen.getByText('콤보 3개 · 3개 사용')).toBeTruthy();
+    expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy();
     jest.useRealTimers();
   });
 
@@ -283,6 +254,7 @@ describe('undo — 삭제와 되돌리기', () => {
   it('두 번째 삭제도 스스로 접는다', async () => {
     jest.useFakeTimers();
     await setup();
+    seed('원투', '로우킥', '훅');
     fireEvent.press(screen.getByLabelText('콤보'));
 
     const deleteFirst = () => {
@@ -338,302 +310,25 @@ describe('settings — 미뤄 둔 슬라이더 값', () => {
   });
 });
 
-describe('words — 호출어 한 줄 편집', () => {
-  it('평소엔 글자만 보이고, 누르면 그 줄만 편집으로 바뀐다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-
-    // 입력 상자 0개
-    expect(screen.queryAllByPlaceholderText('잽')).toHaveLength(0);
-
-    fireEvent.press(screen.getByText('잽'));
-    await waitFor(() => expect(screen.getByPlaceholderText('잽')).toBeTruthy());
-    // 한 줄만 열린다
-    expect(screen.queryAllByPlaceholderText('스트레이트')).toHaveLength(0);
-  });
-
-  it('분류 탭으로 걸러진다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-    expect(screen.getByText('잽')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('킥'));
-    await waitFor(() => expect(screen.queryByText('잽')).toBeNull());
-    expect(screen.getByText('로우킥')).toBeTruthy();
-  });
-
-  it('쓸어 넘기면 옆 분류로 간다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-    expect(screen.getByText('잽')).toBeTruthy();
-
-    // 왼쪽으로 쓸면 오른쪽 것(펀치 → 킥)
-    act(() => fireSwipe(-COMMIT));
-    await waitFor(() => expect(screen.queryByText('잽')).toBeNull());
-    expect(screen.getByText('로우킥')).toBeTruthy();
-
-    // 오른쪽으로 쓸면 되돌아온다
-    act(() => fireSwipe(COMMIT));
-    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
-  });
-
-  it('끝에서는 감기지 않는다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-
-    // 첫 분류에서 오른쪽으로 쓸어도 마지막(풋워크)으로 건너뛰지 않는다
-    act(() => fireSwipe(COMMIT));
-    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
-  });
-
-  it('살짝 스친 것으로는 분류가 안 바뀐다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-
-    act(() => fireSwipe(-(COMMIT - 1)));
-    await waitFor(() => expect(screen.getByText('잽')).toBeTruthy());
-  });
-
-  /*
-   * 편집칸은 자동으로 포커스를 받는다. 스크롤이 따라가지 않으면 포커스는 키보드 아래에 있다.
-   * 두 번 겨누는 게 핵심이다 — 펼치는 순간에는 아래 여백에 키보드가 없어서 마지막 줄이
-   * 굴릴 수 있는 끝에 걸리고, 여백이 늘어난 뒤에야 목표까지 간다.
-   */
-  it('줄을 펼치면 그 줄로 굴려 가고, 키보드가 올라오면 다시 겨눈다', async () => {
-    const { ScrollView } = jest.requireActual('react-native');
-    const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {});
-    const heard: Record<string, ((e: unknown) => void)[]> = {};
-    const spy = jest.spyOn(Keyboard, 'addListener').mockImplementation(((evt: string, cb: (e: unknown) => void) => {
-      (heard[evt] ??= []).push(cb);
-      return { remove: () => {} };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any);
-
-    try {
-      await setup();
-      fireEvent.press(screen.getByLabelText('호출어'));
-
-      /* jest에는 레이아웃 엔진이 없다. 자리를 아는 것이 전제인 동작이라 직접 재 준다. */
-      fireEvent(screen.getByText('잽'), 'layout', {
-        nativeEvent: { layout: { x: 0, y: 400, width: 350, height: 57 } },
-      });
-
-      fireEvent.press(screen.getByText('잽'));
-      await waitFor(() => expect(screen.getByPlaceholderText('잽')).toBeTruthy());
-      // 줄 위치 400 − 위쪽 여백 100. 목록은 0에 있다.
-      expect(scrollTo).toHaveBeenCalledWith({ y: 300, animated: true });
-
-      const before = scrollTo.mock.calls.length;
-      act(() => {
-        heard.keyboardWillShow?.forEach((cb) => cb({ endCoordinates: { height: 336 } }));
-      });
-      await waitFor(() => expect(scrollTo.mock.calls.length).toBeGreaterThan(before));
-
-      // 키보드를 내린 사람을 다시 끌고 가지는 않는다.
-      const after = scrollTo.mock.calls.length;
-      act(() => {
-        heard.keyboardWillHide?.forEach((cb) => cb({}));
-      });
-      await act(async () => {});
-      expect(scrollTo.mock.calls.length).toBe(after);
-    } finally {
-      spy.mockRestore();
-      scrollTo.mockRestore();
-    }
-  });
-
-  /*
-   * FAB이 키보드 위에 서면 편집칸의 들어보기·확인 단추를 정확히 덮는다.
-   * 실기기에서 그렇게 막혔고, 자리 계산이 아니라 "타자 중에는 걷어낸다"는 규칙이 그걸 푼다.
-   * Keyboard에는 emit이 없어서 등록된 청취자를 붙잡아 직접 부른다(화면과 시트 셋이 함께 듣는다).
-   */
-  it('타자 중에는 동작 추가 FAB을 걷어낸다', async () => {
-    const heard: Record<string, ((e: unknown) => void)[]> = {};
-    const spy = jest.spyOn(Keyboard, 'addListener').mockImplementation(((evt: string, cb: (e: unknown) => void) => {
-      (heard[evt] ??= []).push(cb);
-      return { remove: () => {} };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any);
-
-    try {
-      await setup();
-      fireEvent.press(screen.getByLabelText('호출어'));
-      expect(screen.getByLabelText('동작 추가')).toBeTruthy();
-
-      act(() => {
-        heard.keyboardWillShow?.forEach((cb) => cb({ endCoordinates: { height: 336 } }));
-      });
-      await waitFor(() => expect(screen.queryByLabelText('동작 추가')).toBeNull());
-
-      act(() => {
-        heard.keyboardWillHide?.forEach((cb) => cb({}));
-      });
-      await waitFor(() => expect(screen.getByLabelText('동작 추가')).toBeTruthy());
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  /*
-   * 시트는 앱 트리 안의 뷰다. 뒤에 깔린 편집칸이 포커스를 놓지 않아 키보드가 시트 위에 남는다.
-   * 스크롤 뷰가 keyboardShouldPersistTaps라 RN이 대신 닫아주지도 않는다 — 여는 쪽이 직접 내린다.
-   */
-  it('동작 추가 시트를 열면 키보드를 내리고 펼친 줄을 접는다', async () => {
-    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
-
-    try {
-      await setup();
-      fireEvent.press(screen.getByLabelText('호출어'));
-
-      fireEvent.press(screen.getByText('잽'));
-      await waitFor(() => expect(screen.getByPlaceholderText('잽')).toBeTruthy());
-
-      fireEvent.press(screen.getByLabelText('동작 추가'));
-      expect(dismiss).toHaveBeenCalled();
-
-      /*
-       * 접혔는지는 시트를 닫고 나서 본다. 대역 시트가 accessibilityViewIsModal이라
-       * 열려 있는 동안에는 뒤쪽 트리가 통째로 안 잡혀, 접힘과 가려짐을 구별할 수 없다.
-       */
-      fireEvent.changeText(screen.getByPlaceholderText(/엘보/), '엘보');
-      fireEvent.press(screen.getByText('추가'));
-      await act(async () => {});
-
-      /* 펼친 채로 두면 이 칸의 autoFocus가 키보드를 도로 불러온다. */
-      expect(screen.queryByPlaceholderText('잽')).toBeNull();
-    } finally {
-      dismiss.mockRestore();
-    }
-  });
-
-  it('번호로 일괄 변경하면 호출어가 번호가 된다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('호출어'));
-    fireEvent.press(screen.getByText('번호로 일괄 변경'));
-    await waitFor(() => expect(screen.getByText('원')).toBeTruthy());
-    expect(screen.getByText('투')).toBeTruthy();
-  });
-});
-
-describe('picker — 자리 하나를 시트로 채우기', () => {
-  /*
-   * 입력칸에 포커스를 둔 채 시트를 열면 키보드가 시트를 덮은 채로 남는다.
-   * 자리 문제이기도 하다 — useSheetHeight가 키보드만큼 시트 키를 줄이므로,
-   * 안 내리고 열면 쪼그라든 채 떴다가 키보드가 내려갈 때 들썩인다.
-   */
-  it('빈 자리를 누르면 키보드를 내리고 시트가 열린다', async () => {
-    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
-
-    try {
-      await setup();
-      fireEvent.press(screen.getByLabelText('콤보'));
-      tapCombo(2);
-      fireEvent.press(screen.getByLabelText('1번째 자리'));
-
-      await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
-      expect(dismiss).toHaveBeenCalled();
-    } finally {
-      dismiss.mockRestore();
-    }
-  });
-
-  it('고르면 다음 빈 자리가 열리고, 마지막을 채우면 시트가 닫힌다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
-    fireEvent.press(screen.getByLabelText('1번째 자리'));
-    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
-
-    fireEvent.press(screen.getByText('바디'));
-    // 시트 안의 자리 상자에 들어갔고(격자 칸과 합쳐 둘) 시트는 아직 열려 있다 — 둘째 자리가 남았다.
-    // 시트 뒤는 접근성에서 가려져서 여기서는 콤보 탭 쪽을 볼 수 없다.
-    await waitFor(() => expect(screen.getAllByText('바디')).toHaveLength(2));
-    expect(screen.getByText('동작 고르기')).toBeTruthy();
-
-    fireEvent.press(screen.getByText('킥'));
-    fireEvent.press(screen.getByText('하이킥'));
-    await waitFor(() => expect(screen.queryByText('동작 고르기')).toBeNull());
-    expect(screen.getByLabelText('바디 비우기')).toBeTruthy();
-    expect(screen.getByLabelText('하이킥 비우기')).toBeTruthy();
-  });
-
-  it('격자를 쓸어 넘기면 옆 분류로 간다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
-    fireEvent.press(screen.getByLabelText('1번째 자리'));
-    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
-
-    // 콤보 탭에는 스와이프 영역이 없다. 시트가 열려야 처음 생긴다.
-    expect(swipeAreaCount()).toBe(1);
-
-    act(() => fireSwipe(-COMMIT));
-    await waitFor(() => expect(screen.getByText('로우킥')).toBeTruthy());
-    expect(screen.queryByText('바디')).toBeNull();
-  });
-
-  /*
-   * 자리 상자가 내용에 따라 자라면 아래 격자가 통째로 밀린다.
-   * 누르려던 자리가 손 밑에서 사라지는 것이라, 키는 자리 수와 무관해야 한다.
-   */
-  it('자리가 많아도 자리 상자 높이가 그대로다', async () => {
-    const { UNSAFE_getAllByType } = await setup();
-    const { ScrollView } = jest.requireActual('react-native');
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(8);
-    fireEvent.press(screen.getByLabelText('1번째 자리'));
-    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
-
-    /* 콤보 탭 본문도 스크롤이라 순서로 짚지 않는다. 키가 걸린 층이 자리 상자다. */
-    const trayHeight = () => {
-      const heights = UNSAFE_getAllByType(ScrollView)
-        .map((n: { props: { style?: StyleProp<ViewStyle> } }) => StyleSheet.flatten(n.props.style)?.height)
-        .filter((h): h is number => typeof h === 'number');
-      expect(heights).toHaveLength(1);
-      return heights[0]!;
-    };
-
-    const empty = trayHeight();
-    expect(empty).toBe(CHIP_TRAY_H);
-
-    // 한 줄을 넘길 만큼 채워도 그대로다. 넘치면 상자 안에서 스크롤된다.
-    for (const name of ['바디', '잽', '스트레이트', '레프트훅', '라이트훅', '레프트어퍼']) {
-      fireEvent.press(screen.getByText(name));
-    }
-    await waitFor(() => expect(screen.getAllByText('레프트어퍼')).toHaveLength(2));
-    expect(trayHeight()).toBe(empty);
-  });
-
-  it('닫았다 다시 열면 첫 분류부터 보여준다', async () => {
-    await setup();
-    fireEvent.press(screen.getByLabelText('콤보'));
-    tapCombo(2);
-    fireEvent.press(screen.getByLabelText('1번째 자리'));
-    await waitFor(() => expect(screen.getByText('동작 고르기')).toBeTruthy());
-
-    act(() => fireSwipe(-COMMIT));
-    await waitFor(() => expect(screen.getByText('로우킥')).toBeTruthy());
-
-    fireEvent.press(screen.getByText('로우킥'));
-    fireEvent.press(screen.getByText('완료'));
-    await waitFor(() => expect(screen.queryByText('동작 고르기')).toBeNull());
-    fireEvent.press(screen.getByLabelText('2번째 자리'));
-
-    await waitFor(() => expect(screen.getByText('바디')).toBeTruthy());
-  });
-});
-
 describe('시작 — 죽은 버튼 금지', () => {
-  it('콤보가 하나도 체크되지 않으면 왜 안 되는지 말한다', async () => {
+  it('콤보가 하나도 없으면 왜 안 되는지 말한다', async () => {
     await setup();
+    fireEvent.press(screen.getByText('시작'));
+    await waitFor(() => expect(screen.getByText(/저장된 콤보가 없어/)).toBeTruthy());
+  });
+
+  it('하나도 체크되지 않으면 저장된 것 전부를 쓴다', async () => {
+    await setup();
+    seed('원투');
     fireEvent.press(screen.getByLabelText('콤보'));
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 1개 사용')).toBeTruthy());
     fireEvent.press(screen.getByText('전체 해제'));
-    await waitFor(() => expect(screen.getByText('콤보 4개 · 0개 사용')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('콤보 1개 · 0개 사용')).toBeTruthy());
 
     fireEvent.press(screen.getByLabelText('훈련'));
     fireEvent.press(screen.getByText('시작'));
 
-    // 선택된 콤보가 없으면 저장된 콤보 전부를 쓴다 — 관대한 폴백이라 그냥 시작된다
+    // 선택된 콤보가 없으면 저장된 콤보 전부를 쓴다 — 관대한 폴백이라 그냥 시작된다(기획서 7장)
     await waitFor(() => expect(screen.getByText('준비')).toBeTruthy());
   });
 });

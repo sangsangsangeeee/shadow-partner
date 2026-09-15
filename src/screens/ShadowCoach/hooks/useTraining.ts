@@ -9,15 +9,12 @@ import type { Callouts } from './useCallouts';
 const READY_SEC = 5;
 /** 종소리가 끝나고 첫 호출이 나가기까지의 여유(ms). */
 const ROUND_OPEN_MS = 1200;
-/** 완주 안내를 말하기까지의 여유(ms). */
-const FINISH_MS = 900;
 
 type Params = {
   settings: Settings;
   combos: Combo[];
   callouts: Callouts;
   voice: CoachVoice;
-  speak: (text: string) => void;
 };
 
 export type Training = {
@@ -44,7 +41,7 @@ export type Training = {
  * 구간이 바뀔 때마다 종을 치고 호출 층(useCallouts)에 신호를 준다.
  * 어떤 콤보를 어떻게 부르는지는 이 층이 모른다.
  */
-export function useTraining({ settings, combos, callouts, voice, speak }: Params): Training {
+export function useTraining({ settings, combos, callouts, voice }: Params): Training {
   const [phase, setPhase] = useState<Phase>('idle');
   const [paused, setPaused] = useState(false);
   const [round, setRound] = useState(1);
@@ -64,7 +61,6 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
   const stRef = useLatestRef(settings);
   const roundRef = useLatestRef(round);
   const voiceRef = useLatestRef(voice);
-  const speakRef = useLatestRef(speak);
   // 호출 층은 상태를 들고 있어 렌더마다 바뀐다. ref로 읽어 핸들러 신원을 고정한다.
   const cueRef = useLatestRef(callouts);
 
@@ -81,10 +77,10 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
 
   /* ---- 조작 ---- */
 
-  /** 상태 전환을 먼저 하고 소리·음성은 그 뒤에 시도한다. 기획서 4.1 실패 처리. */
+  /** 상태 전환을 먼저 하고 소리는 그 뒤에 시도한다. 기획서 8장 실패 처리. */
   const start = useCallback(() => {
-    const on = combos.filter((c) => c.on && c.moves.length);
-    const queue = on.length ? on : combos.filter((c) => c.moves.length);
+    const on = combos.filter((c) => c.on);
+    const queue = on.length ? on : combos;
 
     if (!queue.length && stRef.current.mode !== 'none') {
       setStartError(
@@ -102,9 +98,9 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
     setPhase('ready');
     setClock(READY_SEC);
 
+    // 준비는 비프가 알린다 — 카운트다운이 이미 소리를 내고 있다.
     voiceRef.current.prime();
-    speakRef.current('준비');
-  }, [combos, stRef, cueRef, setClock, voiceRef, speakRef]);
+  }, [combos, stRef, cueRef, setClock, voiceRef]);
 
   const stop = useCallback(() => {
     clearAll();
@@ -150,12 +146,9 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
   /*
    * 앱을 나가면 멈춘다.
    *
-   * iOS는 백그라운드에서 JS를 세운다. 나오던 말 한 마디까지만 나오고 시계도 선다 —
+   * iOS는 백그라운드에서 JS를 세운다. 나오던 소리 한 토막까지만 나오고 시계도 선다 —
    * 미니앱이라 오디오 백그라운드 모드를 우리가 선언할 수 없어서 이어갈 방법이 없다.
    * 그냥 두면 돌아왔을 때 라운드가 나가 있던 만큼 밀려 있고, 밀린 예약이 한꺼번에 터진다.
-   *
-   * 그래서 나가는 순간 멈추고, 되살리는 건 사람이 정하게 둔다.
-   * 안드로이드도 같이 멈춘다 — 한쪽만 다르게 굴면 무엇이 정상인지 알 수 없다.
    */
   const liveRef = useLatestRef({ running, paused });
   useEffect(() => {
@@ -206,8 +199,8 @@ export function useTraining({ settings, combos, callouts, voice, speak }: Params
       cue.endRound();
       v.bell(1);
       if (roundRef.current >= st.rounds) {
+        // 끝은 벨이 알린다. 완료 화면이 곧바로 뜬다.
         setPhase('done');
-        later(() => speakRef.current('운동 끝. 수고했어요'), FINISH_MS);
       } else {
         setPhase('rest');
         setClock(st.restSec);

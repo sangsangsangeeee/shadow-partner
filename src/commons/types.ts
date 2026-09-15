@@ -1,66 +1,35 @@
 /** 도메인 모델. 기획서 5장. */
 
-export type Kind = 'punch' | 'kick' | 'def' | 'move';
 export type Mode = 'random' | 'loop' | 'count' | 'none';
 export type Phase = 'idle' | 'ready' | 'work' | 'rest' | 'done';
-export type Tab = 'train' | 'combos' | 'words';
-
-export interface Move {
-  id: string;
-  name: string;
-  kind: Kind;
-  beat: number;
-  num?: string | null;
-  numCall?: string | null;
-  aliases?: string[];
-}
+export type Tab = 'train' | 'combos';
 
 export interface Combo {
   id: string;
-  moves: string[];
+  /** 이름은 필수다. 녹음은 열어 보기 전엔 뭐가 들었는지 모른다(기획서 4.4). */
+  name: string;
   on: boolean;
-  /**
-   * 두드려 만든 리듬(초). i번째 값은 i번째 동작에서 다음 동작까지 — 그래서 동작 수보다 하나 적다.
-   * 없으면 동작마다 정해진 길이를 따른다. 마지막 동작은 두드려서 얻을 수 없으므로 언제나 그렇다.
-   */
-  rhythm?: number[];
-  /** 두드리면서 말한 녹음. 본체는 Clips에 따로 있다 — 여기는 자리만. */
-  clip?: ClipMeta;
-}
-
-export interface ClipMeta {
-  /** 첫 두드림이 녹음 시작에서 몇 초 뒤인가. 재생할 때 그만큼 앞을 잘라 첫 동작에 맞춘다. */
-  offset: number;
   /** 녹음 길이(ms). */
   ms: number;
+  /** 첫 소리의 위치(초). 재생은 여기서 CLIP_LEAD만큼 앞에서 시작한다. */
+  head: number;
+  /** 마지막 소리의 위치(초). 재생은 여기서 CLIP_TAIL만큼 뒤에서 끝난다. */
+  tail: number;
 }
 
-/** 콤보별 녹음 본체(dataURL). 콤보 목록과 따로 저장한다 — 2초에 50KB라 같이 두면 켜고 끌 때마다 전부 다시 쓴다. */
+/** 콤보별 녹음 본체(dataURL). 콤보 목록과 따로 저장한다 — 초당 25KB라 같이 두면 켜고 끌 때마다 전부 다시 쓴다. */
 export type Clips = Record<string, string>;
-
-/** 호출어 덮어쓰기. 기본값을 대체하지 않고 위에 얹는다. */
-export type Labels = Record<string, string>;
-/** 길이 덮어쓰기. 위와 같다. */
-export type Beats = Record<string, number>;
-/** 정규화된 말 -> moveId */
-export type AliasMap = Record<string, string>;
 
 export interface Settings {
   rounds: number;
   roundSec: number;
   restSec: number;
+  /** 재생 속도. 음정도 그만큼 따라 올라간다(기획서 6장). */
   tempo: number;
   gap: number;
   randomGap: boolean;
   mode: Mode;
   reps: number;
-  rate: number;
-  voiceURI: string;
-}
-
-export interface VoiceOption {
-  voiceURI: string;
-  name: string;
 }
 
 /** 콤보 사이 유지 구간. ms가 null이면 다음 콤보가 예약되지 않은 상태. */
@@ -71,16 +40,12 @@ export interface HoldGap {
 
 export interface Stats {
   combos: number;
-  moves: number;
 }
 
-/** 저장되는 훈련 자료 전부. 세 화면이 같이 읽고 두 화면이 고친다. */
+/** 저장되는 훈련 자료 전부. */
 export interface Material {
   combos: Combo[];
   settings: Settings;
-  labels: Labels;
-  customMoves: Move[];
-  beats: Beats;
   clips: Clips;
 }
 

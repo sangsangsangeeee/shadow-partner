@@ -1,7 +1,7 @@
 /*
  * 리듀서는 순수 함수라 화면 없이 바로 굴릴 수 있다.
- * 여기서 보는 것은 "한 조작이 여러 조각을 동시에 맞게 바꾸는가"다.
- * 그게 예전에 setState를 손으로 줄 세우던 자리이고, 어긋나도 조용하던 자리다.
+ * 여기서 보는 것은 "한 조작이 여러 조각을 동시에 맞게 바꾸는가"다 —
+ * 콤보와 녹음 본체는 따로 살면서 같이 움직여야 한다(기획서 5장).
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../../../commons/test-support/tdsMock'));
@@ -16,97 +16,85 @@ jest.mock('@apps-in-toss/native-modules', () => ({
 
 import { materialReducer, type MaterialState } from '../useMaterial';
 import { DEFAULTS } from '../../../../commons/constants';
-import type { Move } from '../../../../commons/types';
-
-const ELBOW: Move = { id: 'c_elbow', name: '엘보', kind: 'punch', beat: 0.5, aliases: [] };
 
 const base = (): MaterialState => ({
   combos: [
-    { id: 'a', moves: ['jab', 'cross'], on: true },
-    { id: 'b', moves: ['jab', 'c_elbow'], on: true },
-    { id: 'c', moves: ['c_elbow'], on: false },
+    { id: 'a', name: '원투', on: true, ms: 2100, head: 0.3, tail: 1.8 },
+    { id: 'b', name: '로우킥', on: true, ms: 1500, head: 0.2, tail: 1.2 },
   ],
   settings: DEFAULTS,
-  labels: { jab: '원', c_elbow: '팔꿈치' },
-  customMoves: [ELBOW],
-  beats: { jab: 0.4, c_elbow: 0.9 },
-  clips: {},
+  clips: { a: 'clip-a', b: 'clip-b' },
   loaded: true,
   undo: null,
 });
 
-describe('removeMove — 네 조각이 한 번에 바뀐다', () => {
-  it('동작이 빠지고, 그 동작을 쓰던 콤보에서도 빠지고, 비면 콤보가 사라진다', () => {
-    const next = materialReducer(base(), { type: 'removeMove', id: 'c_elbow' });
+const NEW = { data: 'clip-new', ms: 1800, head: 0.1, tail: 1.5 };
 
-    expect(next.customMoves).toEqual([]);
-    // b는 잽만 남고, c는 텅 비어 사라진다
-    expect(next.combos.map((c) => c.id)).toEqual(['a', 'b']);
-    expect(next.combos.find((c) => c.id === 'b')?.moves).toEqual(['jab']);
-    // 그 동작에만 걸려 있던 길이·호출어도 같이 지워진다
-    expect(next.beats).toEqual({ jab: 0.4 });
-    expect(next.labels).toEqual({ jab: '원' });
+describe('addCombo — 자리와 본체가 따로 간다', () => {
+  it('콤보에는 잰 값이, clips에는 본체가 들어간다', () => {
+    const next = materialReducer(base(), { type: 'addCombo', name: '훅', clip: NEW });
+    const added = next.combos[0]!;
+    // 새 콤보는 목록 맨 위로. 오늘 담은 것이 제일 중요하다(기획서 4.4).
+    expect(added.name).toBe('훅');
+    expect({ ms: added.ms, head: added.head, tail: added.tail }).toEqual({ ms: 1800, head: 0.1, tail: 1.5 });
+    expect(next.clips[added.id]).toBe('clip-new');
+  });
+});
+
+describe('replaceCombo — 이름만 고칠 때와 다시 녹음할 때가 다르다', () => {
+  it('이름만 주면 녹음은 그대로 남는다', () => {
+    const next = materialReducer(base(), { type: 'replaceCombo', id: 'a', name: '원투쓰리' });
+    const c = next.combos.find((x) => x.id === 'a')!;
+    expect(c.name).toBe('원투쓰리');
+    expect(c.ms).toBe(2100);
+    expect(next.clips.a).toBe('clip-a');
   });
 
-  it('영향받은 콤보 수를 토스트에 적는다', () => {
-    const next = materialReducer(base(), { type: 'removeMove', id: 'c_elbow' });
-    expect(next.undo?.text).toBe('엘보 지웠어 · 콤보 2개에서 빠짐');
+  it('새 녹음을 주면 잰 값이 통째로 갈린다', () => {
+    const next = materialReducer(base(), { type: 'replaceCombo', id: 'a', name: '원투', clip: NEW });
+    const c = next.combos.find((x) => x.id === 'a')!;
+    expect({ ms: c.ms, head: c.head, tail: c.tail }).toEqual({ ms: 1800, head: 0.1, tail: 1.5 });
+    expect(next.clips.a).toBe('clip-new');
   });
 
-  it('되돌리면 넷이 전부 원래대로 온다', () => {
-    const before = base();
-    const gone = materialReducer(before, { type: 'removeMove', id: 'c_elbow' });
-    const back = materialReducer(gone, { type: 'restoreUndo' });
-
-    expect(back.customMoves).toEqual(before.customMoves);
-    expect(back.combos).toEqual(before.combos);
-    expect(back.beats).toEqual(before.beats);
-    expect(back.labels).toEqual(before.labels);
-    expect(back.undo).toBeNull();
-  });
-
-  it('없는 동작을 지우라고 하면 아무것도 건드리지 않는다', () => {
-    const before = base();
-    expect(materialReducer(before, { type: 'removeMove', id: 'nope' })).toBe(before);
+  // ms가 곧 "녹음이 있나"다. 본체만 지우고 잰 값을 남기면 틀 수 없는 콤보가 남는다.
+  it('null을 주면 본체도 잰 값도 같이 사라진다', () => {
+    const next = materialReducer(base(), { type: 'replaceCombo', id: 'a', clip: null });
+    const c = next.combos.find((x) => x.id === 'a')!;
+    expect(c.ms).toBe(0);
+    expect(next.clips.a).toBeUndefined();
   });
 });
 
 describe('removeCombo — 되돌릴 범위는 건드린 조각까지만', () => {
-  it('사용자가 정한 호출어로 토스트를 적는다', () => {
+  it('이름으로 토스트를 적고 본체도 같이 뺀다', () => {
     const next = materialReducer(base(), { type: 'removeCombo', id: 'a' });
-    // jab의 호출어가 '원'으로 바뀌어 있으므로 그 말로 적는다
-    expect(next.undo?.text).toBe('원 스트레이트 지웠어');
+    expect(next.undo?.text).toBe('원투 지웠어');
+    expect(next.combos.map((c) => c.id)).toEqual(['b']);
+    expect(next.clips.a).toBeUndefined();
   });
 
-  it('지운 뒤에 고친 호출어는 되돌리기가 되감지 않는다', () => {
+  it('되돌리면 콤보와 녹음이 같이 돌아온다', () => {
+    const before = base();
+    const gone = materialReducer(before, { type: 'removeCombo', id: 'a' });
+    const back = materialReducer(gone, { type: 'restoreUndo' });
+    expect(back.combos).toEqual(before.combos);
+    expect(back.clips).toEqual(before.clips);
+    expect(back.undo).toBeNull();
+  });
+
+  // 전부 담으면, 지운 뒤에 다른 걸 고쳤을 때 되돌리기가 그것까지 되감는다.
+  it('지운 뒤에 바꾼 설정은 되돌리기가 되감지 않는다', () => {
     const gone = materialReducer(base(), { type: 'removeCombo', id: 'a' });
-    const renamed = materialReducer(gone, { type: 'setLabel', id: 'cross', value: '투' });
-    const back = materialReducer(renamed, { type: 'restoreUndo' });
-
-    expect(back.combos.map((c) => c.id)).toEqual(['a', 'b', 'c']);
-    expect(back.labels['cross']).toBe('투');
-  });
-});
-
-describe('resetMove — 기본 동작과 직접 추가한 동작이 다르다', () => {
-  it('기본 동작은 호출어를 비우고 길이를 되돌린다', () => {
-    const next = materialReducer(base(), { type: 'resetMove', id: 'jab' });
-    expect(next.labels['jab']).toBe('');
-    expect(next.beats['jab']).toBeUndefined();
+    const tuned = materialReducer(gone, { type: 'patchSettings', patch: { tempo: 1.2 } });
+    const back = materialReducer(tuned, { type: 'restoreUndo' });
+    expect(back.combos.map((c) => c.id)).toEqual(['a', 'b']);
+    expect(back.settings.tempo).toBeCloseTo(1.2);
   });
 
-  it('직접 추가한 동작은 이름이 곧 그 동작이라 이름을 지우지 않는다', () => {
-    const next = materialReducer(base(), { type: 'resetMove', id: 'c_elbow' });
-    expect(next.labels['c_elbow']).toBe('팔꿈치');
-    expect(next.beats['c_elbow']).toBeUndefined();
-  });
-});
-
-describe('resetBaseMoves — 기본만 되돌리고 직접 추가한 것은 남긴다', () => {
-  it('기본 동작의 호출어·길이만 사라진다', () => {
-    const next = materialReducer(base(), { type: 'resetBaseMoves' });
-    expect(next.labels).toEqual({ c_elbow: '팔꿈치' });
-    expect(next.beats).toEqual({ c_elbow: 0.9 });
+  it('없는 콤보를 지우라고 하면 아무것도 건드리지 않는다', () => {
+    const before = base();
+    expect(materialReducer(before, { type: 'removeCombo', id: 'nope' })).toBe(before);
   });
 });
 
@@ -128,44 +116,5 @@ describe('patchSettings — 안 바뀐 값은 상태를 새로 만들지 않는�
     });
     expect(next).not.toBe(state);
     expect(next.settings.gap).toBeCloseTo(state.settings.gap + 0.1);
-  });
-});
-
-/*
- * 녹음은 콤보와 따로 산다(기획서 5장). 콤보를 지우면 같이 빠지고 되돌리면 같이 돌아와야 하며,
- * 태그만 고칠 때는 남아야 한다 — 목소리는 여전히 맞는 말을 하고 있다.
- */
-describe('녹음 조각', () => {
-  const clip = { meta: { offset: 0.3, ms: 2100 }, data: 'data:audio/mp4;base64,AAAA' };
-
-  it('녹음과 함께 넣으면 자리는 콤보에, 본체는 clips에 간다', () => {
-    const next = materialReducer(base(), { type: 'addCombo', moves: ['jab', 'cross'], rhythm: [0.2], clip });
-    const added = next.combos[0]!;
-    expect(added.clip).toEqual(clip.meta);
-    expect(next.clips[added.id]).toBe(clip.data);
-  });
-
-  it('콤보를 지우면 녹음도 빠지고, 되돌리면 같이 돌아온다', () => {
-    const withClip = { ...base(), combos: [{ id: 'a', moves: ['jab'], on: true, clip: clip.meta }], clips: { a: clip.data } };
-    const removed = materialReducer(withClip, { type: 'removeCombo', id: 'a' });
-    expect(removed.clips).toEqual({});
-    const restored = materialReducer(removed, { type: 'restoreUndo' });
-    expect(restored.clips).toEqual({ a: clip.data });
-    expect(restored.combos[0]?.clip).toEqual(clip.meta);
-  });
-
-  it('태그만 고치면 녹음은 남고, null을 주면 버리고, 새것을 주면 갈아 끼운다', () => {
-    const withClip = { ...base(), combos: [{ id: 'a', moves: ['jab'], on: true, clip: clip.meta }], clips: { a: clip.data } };
-    const kept = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'] });
-    expect(kept.clips.a).toBe(clip.data);
-    expect(kept.combos[0]?.clip).toEqual(clip.meta);
-
-    const dropped = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'], clip: null });
-    expect(dropped.clips.a).toBeUndefined();
-    expect(dropped.combos[0]?.clip).toBeUndefined();
-
-    const swapped = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'], clip: { meta: { offset: 0, ms: 900 }, data: 'new' } });
-    expect(swapped.clips.a).toBe('new');
-    expect(swapped.combos[0]?.clip).toEqual({ offset: 0, ms: 900 });
   });
 });

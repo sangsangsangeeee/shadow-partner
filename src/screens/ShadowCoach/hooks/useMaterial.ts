@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
-import { BASE_MOVES, DEFAULTS, STORAGE_KEYS } from '../../../commons/constants';
-import { loadJSON, moveIndex, removeJSON, resolveName, saveJSON, uid } from '../../../commons/utils';
-import type { Beats, ClipMeta, Clips, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
+import { DEFAULTS, LEGACY_KEYS, STORAGE_KEYS } from '../../../commons/constants';
+import { loadJSON, removeJSON, saveJSON, uid } from '../../../commons/utils';
+import type { Clips, Combo, Material, Settings, UndoEntry } from '../../../commons/types';
 
 export type MaterialState = Material & {
   /** 저장소를 다 읽었는가. 읽기 전에 쓰면 빈 값으로 덮어쓴다. */
@@ -13,46 +13,26 @@ export type MaterialState = Material & {
 export type MaterialAction =
   | { type: 'hydrate'; value: Partial<Material> }
   | { type: 'patchSettings'; patch: Partial<Settings> }
-  | { type: 'addCombo'; moves: string[]; rhythm?: number[]; clip?: NewClip }
-  /** clip을 안 주면 있던 녹음을 둔다(태그만 고친 것). null이면 버린다. */
-  | { type: 'replaceCombo'; id: string; moves: string[]; rhythm?: number[]; clip?: NewClip | null }
+  | { type: 'addCombo'; name: string; clip: NewClip }
+  /** clip을 안 주면 있던 녹음을 둔다(이름만 고친 것). null이면 버린다. */
+  | { type: 'replaceCombo'; id: string; name?: string; clip?: NewClip | null }
   | { type: 'toggleCombo'; id: string }
-  | { type: 'enableCombo'; id: string }
   | { type: 'setAllCombos'; on: boolean }
   | { type: 'removeCombo'; id: string }
-  | { type: 'addMove'; name: string; kind: Kind; beat: number }
-  | { type: 'renameMove'; id: string; name: string }
-  | { type: 'setLabel'; id: string; value: string }
-  | { type: 'setBeat'; id: string; beat: number }
-  | { type: 'resetMove'; id: string }
-  | { type: 'applyNumberLabels' }
-  | { type: 'resetBaseMoves' }
-  | { type: 'removeMove'; id: string }
   | { type: 'restoreUndo' }
   | { type: 'dismissUndo' };
 
-/** 저장하러 들어오는 녹음. 자리(meta)와 본체(data)가 같이 온다. */
-export type NewClip = { meta: ClipMeta; data: string };
+/** 저장하러 들어오는 녹음. 잰 자리(ms·head·tail)와 본체(data)가 같이 온다. */
+export type NewClip = { data: string; ms: number; head: number; tail: number };
 
-const INITIAL_COMBOS: Combo[] = [
-  { id: uid(), moves: ['jab', 'cross', 'lowkick'], on: true },
-  { id: uid(), moves: ['jab', 'jab', 'cross', 'lhook'], on: true },
-  { id: uid(), moves: ['jab', 'midkick'], on: true },
-  { id: uid(), moves: ['jab', 'cross', 'slip', 'cross'], on: true },
-];
-
+/** 첫 실행은 빈 목록이다. 초기 콤보는 없다(기획서 5장). */
 const INITIAL: MaterialState = {
-  combos: INITIAL_COMBOS,
+  combos: [],
   settings: DEFAULTS,
-  labels: {},
-  customMoves: [],
-  beats: {},
   clips: {},
   loaded: false,
   undo: null,
 };
-
-const isBase = (id: string) => BASE_MOVES.some((m) => m.id === id);
 
 /*
  * 되돌리기가 열릴 때마다 새 번호를 준다.
@@ -60,7 +40,6 @@ const isBase = (id: string) => BASE_MOVES.some((m) => m.id === id);
  * 두 번째 삭제부터 영영 안 닫힌다. 화면이 이 번호를 key로 써서 시계를 다시 감는다.
  *
  * 상태에서 세지 않는다 — 접히면 undo가 null이 되어 번호도 같이 사라진다.
- * 그러면 다음 삭제가 같은 번호를 받아 열쇠가 안 바뀌고, 고치려던 것이 그대로 남는다.
  */
 let undoSeq = 0;
 const nextUndoId = () => (undoSeq += 1);
@@ -75,10 +54,8 @@ function omit<T>(map: Record<string, T>, id: string): Record<string, T> {
 /**
  * 훈련 자료의 단 하나의 진실.
  *
- * 조작 하나가 여러 조각을 한꺼번에 건드리는 경우가 많아서 리듀서로 묶었다.
- * 동작 하나를 지우면 customMoves·combos·beats·labels 네 곳이 같이 바뀌고,
- * 되돌리기는 그 넷을 정확히 원래대로 돌려놔야 한다. setState를 손으로 줄 세우면
- * 한 줄만 빠져도 조용히 어긋난다.
+ * 콤보 하나를 지우면 목록과 녹음 본체가 같이 움직이고, 되돌리기는 둘을 정확히 되감아야 한다.
+ * setState를 손으로 줄 세우면 한 줄만 빠져도 조용히 어긋난다.
  */
 export function materialReducer(state: MaterialState, action: MaterialAction): MaterialState {
   switch (action.type) {
@@ -89,7 +66,6 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
       /*
        * 값이 그대로면 상태도 그대로여야 한다.
        * 슬라이더는 손가락이 움직이는 내내 부르고 같은 눈금에서도 여러 번 온다.
-       * 새 객체를 만들면 그때마다 화면 전체가 다시 그려진다 — 바뀐 게 없는데도.
        */
       const keys = Object.keys(action.patch) as (keyof Settings)[];
       if (keys.every((k) => Object.is(state.settings[k], action.patch[k]))) return state;
@@ -98,11 +74,12 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
 
     case 'addCombo': {
       const id = uid();
-      const combo: Combo = { id, moves: action.moves, on: true, rhythm: action.rhythm, clip: action.clip?.meta };
+      const { data, ...meta } = action.clip;
+      const combo: Combo = { id, name: action.name, on: true, ...meta };
       return {
         ...state,
         combos: [combo, ...state.combos],
-        clips: action.clip ? { ...state.clips, [id]: action.clip.data } : state.clips,
+        clips: { ...state.clips, [id]: data },
       };
     }
 
@@ -110,11 +87,15 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
       const keep = action.clip === undefined;
       return {
         ...state,
-        combos: state.combos.map((c) =>
-          c.id === action.id
-            ? { ...c, moves: action.moves, rhythm: action.rhythm, clip: keep ? c.clip : (action.clip?.meta ?? undefined) }
-            : c
-        ),
+        combos: state.combos.map((c) => {
+          if (c.id !== action.id) return c;
+          const named = action.name === undefined ? c : { ...c, name: action.name };
+          if (keep) return named;
+          // 녹음을 버리면 잰 자리도 같이 0으로 돌아간다. ms가 곧 "녹음이 있나"다.
+          if (!action.clip) return { ...named, ms: 0, head: 0, tail: 0 };
+          const { ms, head, tail } = action.clip;
+          return { ...named, ms, head, tail };
+        }),
         clips: keep
           ? state.clips
           : action.clip
@@ -129,103 +110,20 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
         combos: state.combos.map((c) => (c.id === action.id ? { ...c, on: !c.on } : c)),
       };
 
-    case 'enableCombo':
-      return {
-        ...state,
-        combos: state.combos.map((c) => (c.id === action.id ? { ...c, on: true } : c)),
-      };
-
     case 'setAllCombos':
       return { ...state, combos: state.combos.map((c) => ({ ...c, on: action.on })) };
 
     case 'removeCombo': {
       const target = state.combos.find((c) => c.id === action.id);
       if (!target) return state;
-      const moves = moveIndex(state.customMoves);
-      const text = `${target.moves.map((id) => resolveName(id, state.labels, moves)).join(' ')} 지웠어`;
       return {
         ...state,
         combos: state.combos.filter((c) => c.id !== action.id),
         clips: omit(state.clips, action.id),
-        undo: { id: nextUndoId(), text, before: { combos: state.combos, clips: state.clips } },
-      };
-    }
-
-    case 'addMove':
-      return {
-        ...state,
-        customMoves: [
-          ...state.customMoves,
-          { id: 'c_' + uid(), name: action.name, kind: action.kind, beat: action.beat, aliases: [] },
-        ],
-      };
-
-    case 'renameMove':
-      return {
-        ...state,
-        customMoves: state.customMoves.map((m) => (m.id === action.id ? { ...m, name: action.name } : m)),
-      };
-
-    case 'setLabel':
-      return { ...state, labels: { ...state.labels, [action.id]: action.value } };
-
-    case 'setBeat':
-      return { ...state, beats: { ...state.beats, [action.id]: action.beat } };
-
-    case 'resetMove':
-      return {
-        ...state,
-        // 기본 동작만 호출어를 지운다. 직접 추가한 동작은 이름이 곧 그 동작이다.
-        labels: isBase(action.id) ? { ...state.labels, [action.id]: '' } : state.labels,
-        beats: omit(state.beats, action.id),
-      };
-
-    case 'applyNumberLabels': {
-      const next: Labels = { ...state.labels };
-      BASE_MOVES.forEach((m) => {
-        if (m.numCall) next[m.id] = m.numCall;
-      });
-      return { ...state, labels: next };
-    }
-
-    case 'resetBaseMoves': {
-      const labels: Labels = {};
-      Object.keys(state.labels).forEach((id) => {
-        const v = state.labels[id];
-        if (v !== undefined && !isBase(id)) labels[id] = v;
-      });
-      const beats: Beats = { ...state.beats };
-      BASE_MOVES.forEach((m) => {
-        delete beats[m.id];
-      });
-      return { ...state, labels, beats };
-    }
-
-    /**
-     * 동작 삭제는 콤보 삭제보다 위험하다. 그 동작을 쓰던 콤보에서도 빠지고,
-     * 비어버린 콤보는 사라진다. 그래서 영향 범위를 토스트에 적고 넷을 통째로 되돌린다.
-     */
-    case 'removeMove': {
-      const move = state.customMoves.find((m) => m.id === action.id);
-      if (!move) return state;
-      const affected = state.combos.filter((c) => c.moves.includes(action.id)).length;
-      return {
-        ...state,
-        customMoves: state.customMoves.filter((m) => m.id !== action.id),
-        combos: state.combos
-          .map((c) => ({ ...c, moves: c.moves.filter((mid) => mid !== action.id) }))
-          .filter((c) => c.moves.length),
-        beats: omit(state.beats, action.id),
-        labels: omit(state.labels, action.id),
         undo: {
           id: nextUndoId(),
-          text: affected ? `${move.name} 지웠어 · 콤보 ${affected}개에서 빠짐` : `${move.name} 지웠어`,
-          before: {
-            combos: state.combos,
-            customMoves: state.customMoves,
-            beats: state.beats,
-            labels: state.labels,
-          },
+          text: `${target.name} 지웠어`,
+          before: { combos: state.combos, clips: state.clips },
         },
       };
     }
@@ -249,9 +147,9 @@ export type MaterialStore = {
 /*
  * 리듀서 상태는 리액트 트리 밖에 산다.
  *
- * 라우터의 _layout은 화면을 하나씩 감싼다. 트리 안에 두면 훈련 화면과 동작 추가 화면이
- * 자료를 한 벌씩 갖게 되어 한쪽에서 넣은 동작이 다른 쪽에 안 보인다.
- * 게다가 둘 다 저장소에 쓰므로 늦게 쓴 쪽이 상대가 넣은 것을 덮어버린다.
+ * 라우터의 _layout은 화면을 하나씩 감싼다. 트리 안에 두면 화면이 둘 설 때 자료가 한 벌씩 생기고,
+ * 둘 다 저장소에 쓰므로 늦게 쓴 쪽이 상대가 넣은 것을 덮는다. 지금은 라우트가 하나뿐이지만
+ * 저장이 dispatch 안에서 일어나는 구조와 dispatch의 고정된 신원이 여기서 같이 나온다.
  */
 let current: MaterialState = INITIAL;
 const listeners = new Set<() => void>();
@@ -270,7 +168,6 @@ function subscribe(listener: () => void) {
  *
  * 슬라이더가 이걸 요구한다. TDS Slider는 onChangeEnd가 없어서 끄는 내내 스텝마다
  * 발화하고, 콤보 간격(0.5~6.0 / 0.1)은 끝에서 끝까지 한 번 끌면 쓰기가 55번이다.
- * 타자는 글자 수만큼이라 훨씬 적다 — 급한 쪽은 슬라이더다.
  */
 const WRITE_DELAY = 300;
 
@@ -299,17 +196,14 @@ function queue(key: string, value: unknown) {
   }, WRITE_DELAY);
 }
 
-/* 조각마다 따로 저장한다. 하나를 고쳤을 때 다섯을 다 쓰지 않는다. */
+/* 조각마다 따로 저장한다. 하나를 고쳤을 때 전부를 다 쓰지 않는다. */
 function persist(prev: MaterialState, next: MaterialState) {
   // 다 읽기 전에 쓰면 빈 값으로 덮는다. 방금 읽어 온 값을 되쓰는 것도 이 줄이 막는다.
   if (!prev.loaded) return;
   if (next.combos !== prev.combos) queue(STORAGE_KEYS.combos, next.combos);
   if (next.settings !== prev.settings) queue(STORAGE_KEYS.settings, next.settings);
-  if (next.labels !== prev.labels) queue(STORAGE_KEYS.labels, next.labels);
-  if (next.customMoves !== prev.customMoves) queue(STORAGE_KEYS.moves, next.customMoves);
-  if (next.beats !== prev.beats) queue(STORAGE_KEYS.beats, next.beats);
   if (next.clips !== prev.clips) {
-    // 콤보 하나의 녹음만 바뀐다. 다른 콤보의 50KB를 같이 쓰지 않는다.
+    // 콤보 하나의 녹음만 바뀐다. 다른 콤보의 것을 같이 쓰지 않는다.
     Object.keys({ ...prev.clips, ...next.clips }).forEach((id) => {
       if (next.clips[id] === prev.clips[id]) return;
       queue(STORAGE_KEYS.clip + id, next.clips[id] ?? REMOVE);
@@ -336,29 +230,30 @@ function hydrateOnce() {
   void (async () => {
     const c = await loadJSON<Combo[]>(STORAGE_KEYS.combos);
     const s = await loadJSON<Partial<Settings>>(STORAGE_KEYS.settings);
-    const l = await loadJSON<Labels>(STORAGE_KEYS.labels);
-    const m = await loadJSON<Move[]>(STORAGE_KEYS.moves);
-    const b = await loadJSON<Beats>(STORAGE_KEYS.beats);
-    // 녹음은 콤보별 키에 있다. 자리가 적힌 콤보만 읽는다 — 본체가 없으면 그 콤보는 TTS로 간다.
+
+    /*
+     * v1이 만든 콤보는 버린다(기획서 5장). 이제 부를 방법이 없다 —
+     * 동작 목록도 파서도 없어서 ms 없는 콤보는 이름도 소리도 못 만든다.
+     */
+    const fresh = (c ?? []).filter((x) => typeof x.ms === 'number' && x.ms > 0);
+
     const clips: Clips = {};
-    if (c) {
-      const withClip = c.filter((x) => x.clip);
-      const bodies = await Promise.all(withClip.map((x) => loadJSON<string>(STORAGE_KEYS.clip + x.id)));
-      withClip.forEach((x, i) => {
-        const body = bodies[i];
-        if (typeof body === 'string') clips[x.id] = body;
-      });
-    }
+    const bodies = await Promise.all(fresh.map((x) => loadJSON<string>(STORAGE_KEYS.clip + x.id)));
+    fresh.forEach((x, i) => {
+      const body = bodies[i];
+      if (typeof body === 'string') clips[x.id] = body;
+    });
+
     const value: Partial<Material> = {};
     if (c) {
-      value.combos = c;
+      value.combos = fresh;
       value.clips = clips;
     }
     if (s) value.settings = { ...DEFAULTS, ...s };
-    if (l) value.labels = l;
-    if (m) value.customMoves = m;
-    if (b) value.beats = b;
     dispatchMaterial({ type: 'hydrate', value });
+
+    // v1의 키는 읽지 않고 지운다. 한 번만 — 없으면 아무 일도 없다.
+    LEGACY_KEYS.forEach(removeJSON);
   })();
 }
 

@@ -1,4 +1,4 @@
-import { BEAT_OPTIONS, CUES } from '../constants/moves';
+import { CUES } from '../constants/training';
 
 export const uid = (): string => Math.random().toString(36).slice(2, 10);
 
@@ -9,15 +9,7 @@ export const fmt = (sec: number): string => {
 
 export const pickCue = (): string => CUES[Math.floor(Math.random() * CUES.length)] ?? CUES[0];
 
-/** 임의의 초를 5단계 척도 이름으로 되돌린다. 정확히 맞는 값이 없으면 가장 가까운 단계. */
-export const beatName = (v: number): string => {
-  const hit = BEAT_OPTIONS.find((o) => o.value === v);
-  if (hit) return hit.label;
-  let best: { label: string; value: number } = BEAT_OPTIONS[0];
-  BEAT_OPTIONS.forEach((o) => {
-    if (Math.abs(o.value - v) < Math.abs(best.value - v)) best = o;
-  });
-  return best.label;
-};
-
 export const clamp = (v: number, min: number, max: number): number => Math.min(max, Math.max(min, v));
+
+/** 녹음 길이를 사람이 읽는 초로. `2.3초`. */
+export const secs = (ms: number): string => `${(Math.max(0, ms) / 1000).toFixed(1)}초`;

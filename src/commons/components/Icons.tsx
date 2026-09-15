@@ -83,13 +83,6 @@ export const Check: Icon = (p) => (
   </Frame>
 );
 
-export const Pencil: Icon = (p) => (
-  <Frame {...p}>
-    <Path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.63l4.36-1.33a2 2 0 0 0 .83-.5Z" />
-    <Path d="m15 5 4 4" />
-  </Frame>
-);
-
 export const X: Icon = (p) => (
   <Frame {...p}>
     <Path d="M18 6 6 18" />
@@ -138,15 +131,6 @@ export const ChevronUp: Icon = (p) => (
   </Frame>
 );
 
-export const LayoutGrid: Icon = (p) => (
-  <Frame {...p}>
-    <Rect x={3} y={3} width={7} height={7} rx={1} />
-    <Rect x={14} y={3} width={7} height={7} rx={1} />
-    <Rect x={14} y={14} width={7} height={7} rx={1} />
-    <Rect x={3} y={14} width={7} height={7} rx={1} />
-  </Frame>
-);
-
 export const Timer: Icon = (p) => (
   <Frame {...p}>
     <Path d="M10 2h4" />
@@ -172,12 +156,5 @@ export const AlertCircle: Icon = (p) => (
     <Path d="M12 8v4" />
     {/* round cap이라 길이 0의 선이 점으로 그려진다. lucide가 쓰는 방식. */}
     <Path d="M12 16h.01" />
-  </Frame>
-);
-
-export const Megaphone: Icon = (p) => (
-  <Frame {...p}>
-    <Path d="m3 11 18-5v12L3 14v-3Z" />
-    <Path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
   </Frame>
 );

@@ -4,7 +4,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { generateHapticFeedback, setScreenAwakeMode } from '@apps-in-toss/native-modules';
 import ShadowCoach from '../ShadowCoach';
 import Layout from '../../pages/_layout';
-import { resetMaterial } from '../ShadowCoach/hooks';
+import { dispatchMaterial, resetMaterial } from '../ShadowCoach/hooks';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/tdsMock'));
@@ -12,10 +12,6 @@ jest.mock('@toss/tds-react-native', () => require('../../commons/test-support/td
 /* _layout이 이 모듈에 닿는다. 라우트는 하나뿐이지만 렌더하려면 대역이 필요하다. */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@granite-js/react-native', () => require('../../commons/test-support/routerMock'));
-
-/* 번들러가 실제 패키지로 치환하는 껍데기라 jest에서는 비어 있다. 모듈째 갈아끼운다. */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-jest.mock('@granite-js/native/react-native-gesture-handler', () => require('../../commons/test-support/gestureMock'));
 
 jest.mock('@granite-js/native/react-native-svg', () => {
   const { View } = jest.requireActual('react-native');
@@ -48,16 +44,28 @@ jest.mock('@apps-in-toss/native-modules', () => ({
 const haptic = generateHapticFeedback as jest.Mock;
 const awake = setScreenAwakeMode as jest.Mock;
 
-/** 진동 종류별 호출 횟수 */
 // 자료는 트리 밖에 산다. 테스트마다 초기 상태에서 시작한다.
 beforeEach(resetMaterial);
 
+/** 진동 종류별 호출 횟수 */
 const buzzCounts = () =>
   haptic.mock.calls.reduce<Record<string, number>>((acc, [arg]) => {
     const t = (arg as { type: string }).type;
     acc[t] = (acc[t] ?? 0) + 1;
     return acc;
   }, {});
+
+/* 마이크는 대역에서 영영 안 켜진다. 부를 콤보는 자료에 직접 심는다. */
+const seed = () => {
+  act(() => {
+    dispatchMaterial({ type: 'hydrate', value: {} });
+    dispatchMaterial({
+      type: 'addCombo',
+      name: '원투',
+      clip: { data: 'clip-0', ms: 2000, head: 0.2, tail: 1.6 },
+    });
+  });
+};
 
 describe('벨·클래퍼 — 소리가 안 나는 기기에서도 몸으로 안다', () => {
   beforeEach(() => {
@@ -76,6 +84,7 @@ describe('벨·클래퍼 — 소리가 안 나는 기기에서도 몸으로 안�
       </Layout>
     );
     await act(async () => {});
+    seed();
     fireEvent.press(screen.getByText('시작'));
     await act(async () => {});
   };
@@ -137,7 +146,7 @@ describe('벨·클래퍼 — 소리가 안 나는 기기에서도 몸으로 안�
 });
 
 /*
- * iOS는 백그라운드에서 JS를 세운다. 나오던 말 한 마디까지만 나오고 시계도 선다 —
+ * iOS는 백그라운드에서 JS를 세운다. 나오던 소리 한 토막까지만 나오고 시계도 선다 —
  * 미니앱이라 오디오 백그라운드 모드를 우리가 선언할 수 없어 이어갈 방법이 없다.
  * 그냥 두면 돌아왔을 때 라운드가 밀려 있고 밀린 호출이 한꺼번에 터진다. 그래서 나가면 멈춘다.
  */
@@ -168,6 +177,7 @@ describe('백그라운드 — 나가면 멈추고, 재개는 사람이 정한다
       </Layout>
     );
     await act(async () => {});
+    seed();
     fireEvent.press(screen.getByText('시작'));
     await act(async () => {});
   };
@@ -192,8 +202,7 @@ describe('백그라운드 — 나가면 멈추고, 재개는 사람이 정한다
 
   it('멈춘 동안에는 시계가 안 간다', async () => {
     await startTraining();
-    const before = screen.getByText('0:05');
-    expect(before).toBeTruthy();
+    expect(screen.getByText('0:05')).toBeTruthy();
 
     goto('background');
     await act(async () => {

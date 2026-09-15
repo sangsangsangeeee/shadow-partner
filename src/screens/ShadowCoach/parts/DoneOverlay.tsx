@@ -45,11 +45,11 @@ export function DoneOverlay({ visible, settings, stats, onRestart, onQuit }: Pro
         </Typo>
       </Pop>
 
+      {/* 통계는 라운드·시간·콤보 셋이다. 동작 수는 없다 — 동작이 없다(기획서 4.3). */}
       <View style={styles.statList}>
         <StatRow label="라운드" value={settings.rounds} suffix="R" />
         <StatRow label="운동 시간" value={settings.rounds * settings.roundSec} format={fmt} />
         <StatRow label="콤보" value={stats.combos} suffix="회" />
-        <StatRow label="동작" value={stats.moves} suffix="개" />
       </View>
 
       {/* 액센트는 검정 위에서 어둡다. 오락실 화면도 흰색이 깜빡인다. */}
