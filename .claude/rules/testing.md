@@ -1,6 +1,6 @@
 # 무엇을 어느 층에서 확인하는가
 
-97개 / 7묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
+162개 / 11묶음. **`npx jest --runInBand`로 돌린다** — 병렬로 돌리면 `flows.test.tsx`가
 5초 제한에 걸린다. 회귀가 아니라 부하 문제다.
 
 ## 층
@@ -8,8 +8,12 @@
 | 묶음 | 무엇 | 렌더 |
 |---|---|---|
 | `commons/utils/__tests__/parser.test.ts` | 콤보 파서 | 안 함 |
+| `commons/utils/__tests__/steps.test.ts` | 콤보 박자 — 리듬이 동작 길이를 이기는가, 녹음을 어디서 어디까지 트는가 | 안 함 |
 | `commons/components/__tests__/ring.test.ts` | 링 기하 | 안 함 |
 | `ShadowCoach/hooks/__tests__/materialReducer.test.ts` | 리듀서 전이 | 안 함 |
+| `ShadowCoach/hooks/__tests__/comboDraft.test.ts` | 콤보 초안 — 두드리기·슬롯·한 줄 채우기·늦게 오는 녹음 | 안 함 |
+| `ShadowCoach/hooks/__tests__/persist.test.ts` | 쓰기를 미루는 창 | 안 함 |
+| `commons/constants/__tests__/layout.test.ts` | 기획서가 정한 치수 | 안 함 |
 | `screens/__tests__/screen.test.tsx` | 탭·편집·되돌리기 | 화면 |
 | `screens/__tests__/cues.test.tsx` | 호출어 타이밍 | 화면 |
 | `screens/__tests__/flows.test.tsx` | 긴 흐름, 저장소까지 | 화면 |
@@ -100,6 +104,8 @@ TDS mock과 AsyncStorage mock이 필요하다.
 
 숨은 WebView + TTS 경로(`VoiceEngine`)는 **모든 테스트에서 mock이다.**
 목소리·속도·목소리 목록에 손대는 변경은 기기에서 봐야 한다.
+**녹음도 그렇다.** 대역에서는 마이크가 영영 안 켜져서 화면 테스트의 콤보는 전부 녹음 없이 저장된다.
+마이크가 답하는 순서(켜짐 → 본체)와 그 사이의 취소는 초안 리듀서 순수 테스트가 본다 — 실물 마이크는 iOS에서만 확인됐다.
 
 **스와이프의 인식 자체도 그렇다.** 넘어간 뒤에 무엇이 일어나는지는 테스트가 잡지만,
 가로 20px에서 활성화되고 세로 12px에 양보하는 게 손에 어떻게 느껴지는지는 기기에서만 안다.

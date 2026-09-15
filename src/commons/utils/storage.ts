@@ -27,3 +27,12 @@ export function saveJSON(key: string, value: unknown): void {
     // 저장소 미지원 환경
   }
 }
+
+export function removeJSON(key: string): void {
+  try {
+    const p = Storage.removeItem(key);
+    if (p && typeof p.catch === 'function') p.catch(() => undefined);
+  } catch {
+    // 저장소 미지원 환경
+  }
+}

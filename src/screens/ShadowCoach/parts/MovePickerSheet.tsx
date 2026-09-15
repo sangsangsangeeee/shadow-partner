@@ -13,21 +13,19 @@ type Props = {
   moves: Move[];
   label: (id: string) => string;
   onPick: (id: string) => void;
-  /** 지금까지 쌓인 동작 칩. 비어 있으면 안내 문구를 대신 띄운다. */
-  chips: React.ReactNode;
-  hasPicked: boolean;
+  /** 두드려 만든 자리들. 어느 자리를 채우고 있는지 여기서 보인다. */
+  tray: React.ReactNode;
 };
 
 const KIND_OPTIONS = KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }));
 
 /**
- * 동작을 눌러서 콤보를 쌓는 바텀시트.
+ * 동작을 눌러서 자리 하나를 채우는 바텀시트. 기획서 4.5.
  *
  * 전체 화면이었지만 하는 일은 "고르고 닫기" 하나뿐이라 시트가 맞다.
- * 무엇보다 뒤에 깔린 입력칸이 그대로 보여서, 쌓이는 콤보를 눈으로 확인하며 고를 수 있다.
- * 어떤 분류를 보고 있는지는 여기서만 안다.
+ * 어떤 분류를 보고 있는지는 여기서만 안다. 어느 자리가 열려 있는지는 밖이 안다.
  */
-export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, hasPicked }: Props) {
+export function MovePickerSheet({ open, onClose, moves, label, onPick, tray }: Props) {
   const [kind, setKind] = useState<Kind>('punch');
   const list = moves.filter((m) => m.kind === kind);
   const swipe = useAdjacentStep(KINDS, kind, setKind);
@@ -49,17 +47,15 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
       onDimmerClick={onClose}
       cta={
         // CTA가 Button을 직접 만든다. 여기에 Button을 또 넣으면 눌리는 것이 겹쳐 가장자리가 죽는다.
-        <BottomSheet.CTA onPress={onClose} disabled={!hasPicked}>
-          완료
-        </BottomSheet.CTA>
+        <BottomSheet.CTA onPress={onClose}>완료</BottomSheet.CTA>
       }
     >
       <View style={styles.body}>
         <Segmented options={KIND_OPTIONS} value={kind} onChange={setKind} />
 
         {/*
-          쌓인 칩은 목록 위에 둔다. CTA 옆에 두면 시트가 늘었다 줄었다 한다.
-          키는 두 줄분으로 고정한다 — 칩이 늘 때마다 상자가 자라면 아래 격자가 밀려서
+          자리들은 목록 위에 둔다. CTA 옆에 두면 시트가 늘었다 줄었다 한다.
+          키는 두 줄분으로 고정한다 — 상자가 내용 따라 자라면 아래 격자가 밀려서
           방금 누르려던 자리가 손 밑에서 사라진다. 넘치면 상자 안에서 스크롤된다.
         */}
         <ScrollView
@@ -67,14 +63,10 @@ export function MovePickerSheet({ open, onClose, moves, label, onPick, chips, ha
           contentContainerStyle={styles.trayInner}
           keyboardShouldPersistTaps="handled"
         >
-          {hasPicked ? (
-            chips
-          ) : (
-            <Typo level="caption" color={C.z600} style={styles.noteText}>동작을 눌러서 순서대로 쌓아봐.</Typo>
-          )}
+          {tray}
         </ScrollView>
 
-        {/* 격자만 감싼다. 위 칩 트레이에는 지우는 터치가 있어 얽히면 안 된다. */}
+        {/* 격자만 감싼다. 위 자리 상자에는 자리를 옮기는 터치가 있어 얽히면 안 된다. */}
         <SwipeArea
           onRight={swipe.prev}
           onLeft={swipe.next}
@@ -98,7 +90,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   body: { paddingHorizontal: 20, paddingBottom: 8 },
   cellText: { fontSize: COMBO_SIZE.item },
-  noteText: { fontSize: COMBO_SIZE.note },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: {
     width: '48%',

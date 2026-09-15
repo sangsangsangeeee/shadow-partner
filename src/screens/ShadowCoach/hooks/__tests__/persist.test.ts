@@ -9,6 +9,7 @@
 jest.mock('@toss/tds-react-native', () => require('../../../../commons/test-support/tdsMock'));
 
 const writes: { key: string; value: string }[] = [];
+const removes: string[] = [];
 
 /* 저장은 이제 토스 저장소로 나간다. 무엇이 언제 나갔는지만 보면 되므로 쓰기를 붙잡아 둔다. */
 jest.mock('@apps-in-toss/native-modules', () => ({
@@ -18,7 +19,10 @@ jest.mock('@apps-in-toss/native-modules', () => ({
       writes.push({ key, value });
       return Promise.resolve();
     },
-    removeItem: () => Promise.resolve(),
+    removeItem: (key: string) => {
+      removes.push(key);
+      return Promise.resolve();
+    },
     clearItems: () => Promise.resolve(),
   },
   setScreenAwakeMode: jest.fn(() => Promise.resolve({ enabled: true })),
@@ -34,6 +38,7 @@ const hydrate = () => dispatchMaterial({ type: 'hydrate', value: {} });
 beforeEach(() => {
   jest.useFakeTimers();
   writes.length = 0;
+  removes.length = 0;
   resetMaterial();
 });
 
@@ -141,5 +146,48 @@ describe('읽기 전에는 쓰지 않는다', () => {
     jest.advanceTimersByTime(300);
 
     expect(writes).toHaveLength(0);
+  });
+});
+
+/*
+ * 녹음은 2초에 50KB다. 콤보 목록 키에 같이 넣으면 콤보 하나를 켜고 끌 때마다 전부를 다시 쓴다.
+ * 그래서 콤보별 키로 따로 나가고, 콤보 목록에는 자리만 남는다(기획서 5장).
+ */
+describe('녹음은 콤보별 키로 따로 쓴다', () => {
+  const clip = { meta: { offset: 0.3, ms: 2100 }, data: 'data:audio/mp4;base64,AAAA' };
+  const clipWrites = () => writes.filter((w) => w.key.startsWith(STORAGE_KEYS.clip));
+
+  it('넣으면 콤보 목록에는 자리만, 본체는 sbc:clip:<id>로 간다', () => {
+    hydrate();
+    writes.length = 0;
+    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    jest.advanceTimersByTime(300);
+
+    const combos = writes.find((w) => w.key === STORAGE_KEYS.combos)!;
+    expect(combos.value).not.toContain('base64');
+    expect(clipWrites()).toHaveLength(1);
+    expect(JSON.parse(clipWrites()[0]!.value)).toBe(clip.data);
+  });
+
+  it('다른 콤보를 켜고 꺼도 녹음은 다시 안 쓴다', () => {
+    hydrate();
+    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    jest.advanceTimersByTime(300);
+    writes.length = 0;
+
+    dispatchMaterial({ type: 'addCombo', moves: ['cross'] });
+    jest.advanceTimersByTime(300);
+    expect(clipWrites()).toHaveLength(0);
+  });
+
+  it('콤보를 지우면 그 키를 저장소에서도 걷는다', () => {
+    hydrate();
+    dispatchMaterial({ type: 'addCombo', moves: ['jab'], clip });
+    jest.advanceTimersByTime(300);
+    const id = JSON.parse(writes.find((w) => w.key === STORAGE_KEYS.combos)!.value)[0].id as string;
+
+    dispatchMaterial({ type: 'removeCombo', id });
+    jest.advanceTimersByTime(300);
+    expect(removes).toEqual([STORAGE_KEYS.clip + id]);
   });
 });

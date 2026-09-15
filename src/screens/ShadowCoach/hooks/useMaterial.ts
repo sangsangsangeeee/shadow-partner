@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { BASE_MOVES, DEFAULTS, STORAGE_KEYS } from '../../../commons/constants';
-import { loadJSON, moveIndex, resolveName, saveJSON, uid } from '../../../commons/utils';
-import type { Beats, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
+import { loadJSON, moveIndex, removeJSON, resolveName, saveJSON, uid } from '../../../commons/utils';
+import type { Beats, ClipMeta, Clips, Combo, Kind, Labels, Material, Move, Settings, UndoEntry } from '../../../commons/types';
 
 export type MaterialState = Material & {
   /** 저장소를 다 읽었는가. 읽기 전에 쓰면 빈 값으로 덮어쓴다. */
@@ -13,8 +13,9 @@ export type MaterialState = Material & {
 export type MaterialAction =
   | { type: 'hydrate'; value: Partial<Material> }
   | { type: 'patchSettings'; patch: Partial<Settings> }
-  | { type: 'addCombo'; moves: string[] }
-  | { type: 'replaceCombo'; id: string; moves: string[] }
+  | { type: 'addCombo'; moves: string[]; rhythm?: number[]; clip?: NewClip }
+  /** clip을 안 주면 있던 녹음을 둔다(태그만 고친 것). null이면 버린다. */
+  | { type: 'replaceCombo'; id: string; moves: string[]; rhythm?: number[]; clip?: NewClip | null }
   | { type: 'toggleCombo'; id: string }
   | { type: 'enableCombo'; id: string }
   | { type: 'setAllCombos'; on: boolean }
@@ -30,6 +31,9 @@ export type MaterialAction =
   | { type: 'restoreUndo' }
   | { type: 'dismissUndo' };
 
+/** 저장하러 들어오는 녹음. 자리(meta)와 본체(data)가 같이 온다. */
+export type NewClip = { meta: ClipMeta; data: string };
+
 const INITIAL_COMBOS: Combo[] = [
   { id: uid(), moves: ['jab', 'cross', 'lowkick'], on: true },
   { id: uid(), moves: ['jab', 'jab', 'cross', 'lhook'], on: true },
@@ -43,6 +47,7 @@ const INITIAL: MaterialState = {
   labels: {},
   customMoves: [],
   beats: {},
+  clips: {},
   loaded: false,
   undo: null,
 };
@@ -91,14 +96,32 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
       return { ...state, settings: { ...state.settings, ...action.patch } };
     }
 
-    case 'addCombo':
-      return { ...state, combos: [{ id: uid(), moves: action.moves, on: true }, ...state.combos] };
-
-    case 'replaceCombo':
+    case 'addCombo': {
+      const id = uid();
+      const combo: Combo = { id, moves: action.moves, on: true, rhythm: action.rhythm, clip: action.clip?.meta };
       return {
         ...state,
-        combos: state.combos.map((c) => (c.id === action.id ? { ...c, moves: action.moves } : c)),
+        combos: [combo, ...state.combos],
+        clips: action.clip ? { ...state.clips, [id]: action.clip.data } : state.clips,
       };
+    }
+
+    case 'replaceCombo': {
+      const keep = action.clip === undefined;
+      return {
+        ...state,
+        combos: state.combos.map((c) =>
+          c.id === action.id
+            ? { ...c, moves: action.moves, rhythm: action.rhythm, clip: keep ? c.clip : (action.clip?.meta ?? undefined) }
+            : c
+        ),
+        clips: keep
+          ? state.clips
+          : action.clip
+            ? { ...state.clips, [action.id]: action.clip.data }
+            : omit(state.clips, action.id),
+      };
+    }
 
     case 'toggleCombo':
       return {
@@ -123,7 +146,8 @@ export function materialReducer(state: MaterialState, action: MaterialAction): M
       return {
         ...state,
         combos: state.combos.filter((c) => c.id !== action.id),
-        undo: { id: nextUndoId(), text, before: { combos: state.combos } },
+        clips: omit(state.clips, action.id),
+        undo: { id: nextUndoId(), text, before: { combos: state.combos, clips: state.clips } },
       };
     }
 
@@ -252,6 +276,8 @@ const WRITE_DELAY = 300;
 
 /** 아직 안 나간 쓰기. 키마다 마지막 값만 남긴다 — 중간 값은 어차피 덮인다. */
 const pending = new Map<string, unknown>();
+/** 큐에 실린 "지워라". 녹음을 뺀 콤보의 키를 저장소에서도 걷는다. */
+const REMOVE = Symbol('remove');
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 미뤄둔 것을 지금 전부 내보낸다. 앱이 내려갈 때와 테스트가 되감을 때 부른다. */
@@ -260,7 +286,7 @@ export function flushMaterial() {
     clearTimeout(writeTimer);
     writeTimer = null;
   }
-  pending.forEach((value, key) => saveJSON(key, value));
+  pending.forEach((value, key) => (value === REMOVE ? removeJSON(key) : saveJSON(key, value)));
   pending.clear();
 }
 
@@ -282,6 +308,13 @@ function persist(prev: MaterialState, next: MaterialState) {
   if (next.labels !== prev.labels) queue(STORAGE_KEYS.labels, next.labels);
   if (next.customMoves !== prev.customMoves) queue(STORAGE_KEYS.moves, next.customMoves);
   if (next.beats !== prev.beats) queue(STORAGE_KEYS.beats, next.beats);
+  if (next.clips !== prev.clips) {
+    // 콤보 하나의 녹음만 바뀐다. 다른 콤보의 50KB를 같이 쓰지 않는다.
+    Object.keys({ ...prev.clips, ...next.clips }).forEach((id) => {
+      if (next.clips[id] === prev.clips[id]) return;
+      queue(STORAGE_KEYS.clip + id, next.clips[id] ?? REMOVE);
+    });
+  }
 }
 
 /** 신원이 영영 고정된 dispatch. memo를 건 자식들이 이걸 믿고 있다. */
@@ -306,8 +339,21 @@ function hydrateOnce() {
     const l = await loadJSON<Labels>(STORAGE_KEYS.labels);
     const m = await loadJSON<Move[]>(STORAGE_KEYS.moves);
     const b = await loadJSON<Beats>(STORAGE_KEYS.beats);
+    // 녹음은 콤보별 키에 있다. 자리가 적힌 콤보만 읽는다 — 본체가 없으면 그 콤보는 TTS로 간다.
+    const clips: Clips = {};
+    if (c) {
+      const withClip = c.filter((x) => x.clip);
+      const bodies = await Promise.all(withClip.map((x) => loadJSON<string>(STORAGE_KEYS.clip + x.id)));
+      withClip.forEach((x, i) => {
+        const body = bodies[i];
+        if (typeof body === 'string') clips[x.id] = body;
+      });
+    }
     const value: Partial<Material> = {};
-    if (c) value.combos = c;
+    if (c) {
+      value.combos = c;
+      value.clips = clips;
+    }
     if (s) value.settings = { ...DEFAULTS, ...s };
     if (l) value.labels = l;
     if (m) value.customMoves = m;

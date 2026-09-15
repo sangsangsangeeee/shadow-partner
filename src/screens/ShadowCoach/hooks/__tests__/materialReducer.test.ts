@@ -30,6 +30,7 @@ const base = (): MaterialState => ({
   labels: { jab: '원', c_elbow: '팔꿈치' },
   customMoves: [ELBOW],
   beats: { jab: 0.4, c_elbow: 0.9 },
+  clips: {},
   loaded: true,
   undo: null,
 });
@@ -127,5 +128,44 @@ describe('patchSettings — 안 바뀐 값은 상태를 새로 만들지 않는�
     });
     expect(next).not.toBe(state);
     expect(next.settings.gap).toBeCloseTo(state.settings.gap + 0.1);
+  });
+});
+
+/*
+ * 녹음은 콤보와 따로 산다(기획서 5장). 콤보를 지우면 같이 빠지고 되돌리면 같이 돌아와야 하며,
+ * 태그만 고칠 때는 남아야 한다 — 목소리는 여전히 맞는 말을 하고 있다.
+ */
+describe('녹음 조각', () => {
+  const clip = { meta: { offset: 0.3, ms: 2100 }, data: 'data:audio/mp4;base64,AAAA' };
+
+  it('녹음과 함께 넣으면 자리는 콤보에, 본체는 clips에 간다', () => {
+    const next = materialReducer(base(), { type: 'addCombo', moves: ['jab', 'cross'], rhythm: [0.2], clip });
+    const added = next.combos[0]!;
+    expect(added.clip).toEqual(clip.meta);
+    expect(next.clips[added.id]).toBe(clip.data);
+  });
+
+  it('콤보를 지우면 녹음도 빠지고, 되돌리면 같이 돌아온다', () => {
+    const withClip = { ...base(), combos: [{ id: 'a', moves: ['jab'], on: true, clip: clip.meta }], clips: { a: clip.data } };
+    const removed = materialReducer(withClip, { type: 'removeCombo', id: 'a' });
+    expect(removed.clips).toEqual({});
+    const restored = materialReducer(removed, { type: 'restoreUndo' });
+    expect(restored.clips).toEqual({ a: clip.data });
+    expect(restored.combos[0]?.clip).toEqual(clip.meta);
+  });
+
+  it('태그만 고치면 녹음은 남고, null을 주면 버리고, 새것을 주면 갈아 끼운다', () => {
+    const withClip = { ...base(), combos: [{ id: 'a', moves: ['jab'], on: true, clip: clip.meta }], clips: { a: clip.data } };
+    const kept = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'] });
+    expect(kept.clips.a).toBe(clip.data);
+    expect(kept.combos[0]?.clip).toEqual(clip.meta);
+
+    const dropped = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'], clip: null });
+    expect(dropped.clips.a).toBeUndefined();
+    expect(dropped.combos[0]?.clip).toBeUndefined();
+
+    const swapped = materialReducer(withClip, { type: 'replaceCombo', id: 'a', moves: ['cross'], clip: { meta: { offset: 0, ms: 900 }, data: 'new' } });
+    expect(swapped.clips.a).toBe('new');
+    expect(swapped.combos[0]?.clip).toEqual({ offset: 0, ms: 900 });
   });
 });
